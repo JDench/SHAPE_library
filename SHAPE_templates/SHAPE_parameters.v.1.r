@@ -35,7 +35,7 @@ shape_save_batchJob <- 1
 # Now, if we're doing processing on a remote server with SLURM submissions, then we may have been
 # passed an shape_outDir argument that is meant for the compute node location, in which case we'll need to save
 # a new object for the final repository
-shape_finalDir <- shape_outDir
+shape_finalDir <- getOption("shape_outDir")
 
 # I will consider a run to have an active replicate of at least 1 to start a call, this
 # may be modified by arguments passed through the outside and processed below.
