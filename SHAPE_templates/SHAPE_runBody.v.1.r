@@ -13,8 +13,8 @@
 # We tidy up our space and then load libraries
 rm(list=ls())
 
-# We load the SHAPE library and then initialise the basic parameters.
-library(SHAPE)
+# We load the rSHAPE library and then initialise the basic parameters.
+library(rSHAPE)
 defineSHAPE()
 
 # This is the file path to the parameters that will be used for this run, this will over-write many of the default parameters.
