@@ -35,7 +35,7 @@ shape_save_batchString <- name_batchString(funcBase = shape_save_batchBase,
                                            func_jobID = shape_save_batchJob,
                                            func_sepString = getOption("shape_sepString"))
 # We calculate what the outDir should be
-shape_outDir <- paste(shape_workDir,shape_save_batchString,"/",sep=""))
+shape_outDir <- paste(shape_workDir,shape_save_batchString,"/",sep="")
 
 # Now, if we're doing processing on a remote server with SLURM submissions, then we may have been
 # passed an shape_outDir argument that is meant for the compute node location, in which case we'll need to save
