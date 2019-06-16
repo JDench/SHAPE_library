@@ -19,10 +19,8 @@ shape_results_removeSteps <- TRUE
 # This is a logical toggle as to whether the script replicates by external job creation or internally with for loops.
 shape_externalSelfing <- FALSE
 
-
 ####### FILE AND SYSTEM LOCATIONS #######
 shape_workDir <- "A_Folder/Some_subDir/"
-
 
 # This is a string that can be used to uniquely identify the batch of jobs, something must be defined for funcBase,
 # nothing is defined for the rep as those are within a job's directory.  The jobID and setID values can be left as NULL
@@ -31,11 +29,18 @@ shape_workDir <- "A_Folder/Some_subDir/"
 shape_save_batchBase <- "yourJob"
 shape_save_batchSet <- 1
 shape_save_batchJob <- 1
+# This overwrites the default batchString and outDirectory values based on the parameters defined
+shape_save_batchString <- name_batchString(funcBase = shape_save_batchBase,
+                                           func_setID = shape_save_batchSet,
+                                           func_jobID = shape_save_batchJob,
+                                           func_sepString = getOption("shape_sepString"))
+# We calculate what the outDir should be
+shape_outDir <- paste(shape_workDir,shape_save_batchString,"/",sep=""))
 
 # Now, if we're doing processing on a remote server with SLURM submissions, then we may have been
 # passed an shape_outDir argument that is meant for the compute node location, in which case we'll need to save
 # a new object for the final repository.  shape_outDir mya be over-written by the outside arguments.
-shape_finalDir <- shape_outDir <- getOption("shape_outDir")
+shape_finalDir <- shape_outDir
 
 # I will consider a run to have an active replicate of at least 1 to start a call, this
 # may be modified by arguments passed through the outside and processed below.
