@@ -13,7 +13,7 @@
 # We tidy up our space and then load libraries
 rm(list=ls())
 
-# We load the rSHAPE library and then initialise the basic parameters.
+# We load the SHAPE library and then initialise the basic parameters.
 library(rSHAPE)
 defineSHAPE()
 

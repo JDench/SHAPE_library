@@ -5,22 +5,24 @@ Version: 0.2.2
 Author: Jonathan Dench
 Maintainer: The package maintainer <jdenc017@gmail.com>
 Description: This is an R package grouping together the set of scripts I originally wrote
-	to become SHAPE.  There are numerous sub functions and some few wrapper functions which
-	run the actual simulations.  Simulation will create directories and files on your drive,
-	and even perform some measure of post-analysis of the output.  However, using the results
-	of a SHAPE run is open users.  SHAPE will generate numerous replicate simulations for a defined
-	range of parameters at the onset of an "experiment".  The experiment will be built all under a root
-	path built by SHAPE wherein you'll find folders which group parameter combinations into jobs and their
-	independent replicates.  Jobs can themselves be replicated into groups of jobs in order to allow significance
-	testing for aspects defined by parameters but are still random (eg: fitness landscapes).  The resultant output
-	will be SQL database files detailing the population demogrpahics throughout the run and the associated
-	fitness landscape that was explored in the simulation.  Processed runs will have RData files created
-	which will contain named list objects containing summary information I presume to be usefull.  
-	The rest is open to you!  If you want to simulate evolution and care to then explore how evolutionary
-	parameters affect your system - which can be varried by different evolutionary models - enjoy SHAPE.
+		to become SHAPE.  There are numerous sub functions and some few wrapper functions 
+		which run the actual simulations.  Simulation will create directories and files on 
+		your drive, and even perform some measure of post-analysis of the output.  However, 
+		using the results of a SHAPE run is open users.  SHAPE will generate numerous replicate 
+		simulations for a defined range of parameters at the onset of an "experiment".  The 
+		experiment will be built all under a root path built by SHAPE wherein you'll find 
+		folders which group parameter combinations into jobs and their independent replicates.  
+		Jobs can themselves be replicated into groups of jobs in order to allow significance 
+		testing for aspects defined by parameters but are still random (eg: fitness landscapes).
+		The resultant output will be SQL database files detailing the population demogrpahics 
+		throughout the run and the associated fitness landscape that was explored in the 
+		simulation.  Processed runs will have RData files created which will contain named list 
+		objects containing summary information I presume to be usefull.  The rest is open to you!
+		If you want to simulate evolution and care to then explore how evolutionary parameters 
+		affect your system - which can be varried by different evolutionary models - enjoy SHAPE.
 License: GPL-3
-Depends: R (>= 3.2), abind, graphics, sn, VGAM, evd, stats, RSQLite, DBI
-Imports: abind, graphics, sn, VGAM, evd, stats, RSQLite, DBI
+Depends: R (>= 3.2)
+Imports: abind, graphics, sn, VGAM, evd, stats, utils, RSQLite, DBI
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 6.1.1

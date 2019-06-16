@@ -18,6 +18,9 @@ shapeExperiment(func_filapath_toDesign, func_templateDir,
 \item{func_filapath_toDesign}{This is the absolute filepath which points to the SHAPE_experimentalDesign like
 template you'd like used to identify parameter combinations for building your experiment.}
 
+\item{func_templateDir}{This is the absolute filepath to a directory on your machine where the SHAPE template
+scripts/files have been saved.  They are used by this function to help build your experiment.}
+
 \item{func_maxGrouped_perShell}{Integer value defining the maximal number of jobs that an output shell script
 will try to have run in parallel once executed.  This is related to your parallel computing potential.}
 

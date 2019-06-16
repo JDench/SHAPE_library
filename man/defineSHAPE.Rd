@@ -37,6 +37,7 @@ defineSHAPE(shape_allow_backMutations = TRUE,
   shape_size_timeStep = 1, shape_stringsAsFactors = FALSE,
   shape_string_lineDescent = "_->_",
   shape_string_tableNames = "numMutations", shape_thisRep = 1,
+  shape_tmpGenoTable = NULL,
   shape_tmp_selfScript = "~/random_nullFile.txt", shape_use_sigFig = 4,
   shape_toggle_forceCompletion = FALSE, shape_track_asWhole = FALSE,
   shape_track_distSize = NULL, shape_workDir = "~/defaultSHAPE/")
@@ -169,6 +170,10 @@ It get's used when we are tracking sequential genotypes through the line of desc
 
 \item{shape_thisRep}{This is the replicate number of the first replicate processed in the called run.}
 
+\item{shape_tmpGenoTable}{This is a temporary object of a table of genotype information that is to be passed along
+different functions of SHAPE.  It's stored as an option since it can be build within a function where it is not returned
+as an object but then used later.  There is little value in setting this manually.}
+
 \item{shape_tmp_selfScript}{This is an optionally defined filepath location for a file that will exist to signal that
 an externally replicating SHAPE run can stop.  This only matters if selfing is external.}
 
@@ -183,8 +188,6 @@ maximum number of replicates being completed.}
 or the divisor of the community size.  It must be > 1 or is forced to that value.}
 
 \item{shape_workDir}{This is the main working directory relative to which your SHAPE experiment will be built and run.}
-
-\item{shape_tmpGenoTable}{This is the name of temporary genotype space tables we may create or collected in-situ}
 }
 \description{
 These are some global reference options that SHAPE will use and I consider the defaults.

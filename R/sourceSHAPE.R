@@ -11,7 +11,7 @@
 #install()
 ## As well writting a pdf manual
 #setwd("C:/Users/Jonathan/Documents/Programming/MyScripts/SHAPE/SHAPE")
-#system("R CMD Rd2pdf . --title=Package yourpackagename --output=./SHAPE_manual.pdf --force --no-clean --internals")
+#system("R CMD Rd2pdf . --title=rSHAPE --output=./SHAPE_manual.pdf --force --no-clean --internals")
 
 # Here are the library dependencies
 #require(abind) # This allows me to bind array objects along any dimension, including creating new ones.
@@ -27,7 +27,8 @@
 #' @importFrom sn rsn
 #' @importFrom VGAM rfrechet
 #' @importFrom evd rgev rrweibull
-#' @importFrom stats sd rpois rbinom rgamma runif rnorm rchisq rbeta rexp rweibull weighted.mean
+#' @importFrom stats sd rpois rbinom rgamma runif rnorm rchisq rbeta rexp rweibull weighted.mean setNames var
+#' @importFrom utils read.csv write.table
 #' @import RSQLite
 #' @import DBI
 NULL
@@ -115,7 +116,9 @@ NULL
 #' It get's used when we are tracking sequential genotypes through the line of descent
 #' @param shape_string_tableNames This is a string value used as the prefix when naming table in the fitness landscape DB.
 #' @param shape_thisRep This is the replicate number of the first replicate processed in the called run.
-#' @param shape_tmpGenoTable This is the name of temporary genotype space tables we may create or collected in-situ
+#' @param shape_tmpGenoTable This is a temporary object of a table of genotype information that is to be passed along
+#' different functions of SHAPE.  It's stored as an option since it can be build within a function where it is not returned
+#' as an object but then used later.  There is little value in setting this manually.
 #' @param shape_tmp_selfScript This is an optionally defined filepath location for a file that will exist to signal that
 #' an externally replicating SHAPE run can stop.  This only matters if selfing is external.
 #' @param shape_use_sigFig This is the number of significant figures that will be kept for processed output.
@@ -184,6 +187,7 @@ defineSHAPE <- function(shape_allow_backMutations = TRUE,
                                  shape_string_lineDescent = "_->_",
                                  shape_string_tableNames = "numMutations",
                                  shape_thisRep = 1,
+                                 shape_tmpGenoTable = NULL,
                                  shape_tmp_selfScript = "~/random_nullFile.txt",
                                  shape_use_sigFig = 4,
                                  shape_toggle_forceCompletion = FALSE,
@@ -3112,7 +3116,7 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"), workingReplicate
       tmp_realNames <- getOption("shape_fileName_dataBase")
 
       # We create an environment , into which we can load the existing information so the needed parts can be obtained
-      assign("recycleParms", new.env(), pos = ".GlobalEnv")
+      assign("tmpEnvir_recycleParms", new.env(), pos = ".GlobalEnv")
       tmp_tryFile <- paste(getOption("shape_outDir"),
                            paste(getOption("shape_save_batchString"),
                                  "Parameters",
@@ -3120,7 +3124,7 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"), workingReplicate
                                  sep=getOption("shape_sepString")),
                            ".RData",sep="")
       if(file.exists(tmp_tryFile)){
-        load(tmp_tryFile, envir= recycleParms )
+        load(tmp_tryFile, envir= tmpEnvir_recycleParms )
       } else {
         stop("There was a problem trying to load the seed runs' parameters during call to recycle Landscape.  Please review")
       }
@@ -3135,8 +3139,8 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"), workingReplicate
 
       # we now simply go through the sets to load an place them into the global environment
       for(thisSet in loadSet){
-        for(thisNamed in names(recycleParms$runParameters[[thisSet]])){
-          options(setNames(list(recycleParms$runParameters[[thisSet]][[thisNamed]]),thisNamed))
+        for(thisNamed in names(tmpEnvir_recycleParms$runParameters[[thisSet]])){
+          options(setNames(list(tmpEnvir_recycleParms$runParameters[[thisSet]][[thisNamed]]),thisNamed))
         }
       }
 
@@ -3146,7 +3150,7 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"), workingReplicate
                    "shape_save_batchIndex" = tmp_real_batchStrings,
                    "shape_fileName_dataBase" = tmp_realNames))
       # We now remove our loaded parameters to save workspace.
-      rm(recycleParms, envir = globalenv())
+      rm(tmpEnvir_recycleParms, envir = globalenv())
 
     } else {
       ### This section builds fitness landscape model objects for the NK, RMF, Additive and Fixed models ###
@@ -3310,7 +3314,7 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"), workingReplicate
       tmp_realNames <- getOption("shape_fileName_dataBase")
 
       # We create an environment, load the values, assign what is needed
-      assign("recycleParms", new.env(), pos = ".GlobalEnv")
+      assign("tmpEnvir_recycleParms", new.env(), pos = ".GlobalEnv")
       tmp_loadFile <- paste(getOption("shape_outDir"),
                             paste(getOption("shape_save_batchString"),
                                   "Parameters",
@@ -3319,7 +3323,7 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"), workingReplicate
                             ".RData",
                             sep="")
       if(file.exists(tmp_loadFile)){
-        load(tmp_loadFile, envir= recycleParms )
+        load(tmp_loadFile, envir= tmpEnvir_recycleParms )
       } else {
         stop("There was a problem trying to load the seed runs' parameters during call to recycle Landscape.  Please review")
       }
@@ -3331,8 +3335,8 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"), workingReplicate
       }
       # We now simply go through the sets to load an place them into the global environment
       for(thisSet in loadSet){
-        for(thisNamed in names(recycleParms$runParameters[[thisSet]])){
-          options(setNames(list(recycleParms$runParameters[[thisSet]][[thisNamed]]), thisNamed))
+        for(thisNamed in names(tmpEnvir_recycleParms$runParameters[[thisSet]])){
+          options(setNames(list(tmpEnvir_recycleParms$runParameters[[thisSet]][[thisNamed]]), thisNamed))
         }
       }
       # We re-update our real replicate value - this would only matter if shape_run_isRecycling["Parameters"] == FALSE
@@ -3341,7 +3345,7 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"), workingReplicate
                    "shape_save_batchIndex" = tmp_real_batchStrings,
                    "shape_fileName_dataBase" = tmp_realNames))
       # We now remove our loaded parameters to save workspace.
-      rm(recycleParms, envir = globalenv())
+      rm(tmpEnvir_recycleParms, envir = globalenv())
     }
     # At this point we check what was the max previously recorded genotypeID and pass this to the run
     options("shape_nextID" = max(unlist(lapply(dbListTables(connections_dataBase$genotypeSpace), function(thisTable){
@@ -3587,6 +3591,8 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"), workingReplicate
 #'
 #' @param func_filapath_toDesign This is the absolute filepath which points to the SHAPE_experimentalDesign like
 #' template you'd like used to identify parameter combinations for building your experiment.
+#' @param func_templateDir This is the absolute filepath to a directory on your machine where the SHAPE template
+#' scripts/files have been saved.  They are used by this function to help build your experiment.
 #' @param func_maxGrouped_perShell Integer value defining the maximal number of jobs that an output shell script
 #' will try to have run in parallel once executed.  This is related to your parallel computing potential.
 #' @param func_filePath_R This is the absolute path to the R application on the system where SHAPE would be run
@@ -3853,9 +3859,9 @@ shapeExperiment <- function(func_filapath_toDesign, func_templateDir,
                       func_inParms = inputParms,
                       func_maxJobs= func_maxGrouped_perShell,
                       func_appLocation = func_filePath_R,
-                      func_remoteLocation = remoteLocation,
+                      func_remoteLocation = func_remoteLocation,
                       func_commonArgs = func_baseCall,
-                      func_submitArgs = submitArgs,
+                      func_submitArgs = func_submitArgs,
                       func_passedArgs = func_rArgs)
     }
   }
