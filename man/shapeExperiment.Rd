@@ -6,7 +6,7 @@
 and then build a SHAPE experiment by creating all the folder structure, .R and .sh scripts
 required to programatically run your experiment -- excluding post-analysis, that's a you problem.}
 \usage{
-shapeExperiment(func_filapath_toDesign, func_templateDir,
+shapeExperiment(func_filepath_toDesign, func_templateDir,
   func_maxGrouped_perShell = 2, func_filePath_R = NULL,
   func_baseCall = "CMD BATCH",
   func_rArgs = "\\"--args shape_thisRep=1 shape_outDir='fake_serverPath/fakeDir/'\\"",
@@ -15,7 +15,7 @@ shapeExperiment(func_filapath_toDesign, func_templateDir,
   "-t 14-00:00:00", fileOut = "-o fakeOut"))
 }
 \arguments{
-\item{func_filapath_toDesign}{This is the absolute filepath which points to the SHAPE_experimentalDesign like
+\item{func_filepath_toDesign}{This is the absolute filepath which points to the SHAPE_experimentalDesign like
 template you'd like used to identify parameter combinations for building your experiment.}
 
 \item{func_templateDir}{This is the absolute filepath to a directory on your machine where the SHAPE template

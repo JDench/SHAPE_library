@@ -129,6 +129,23 @@ NULL
 #' or the divisor of the community size.  It must be > 1 or is forced to that value.
 #' @param shape_workDir This is the main working directory relative to which your SHAPE experiment will be built and run.
 #'
+#' @examples
+#' # This function builds the basic parameters for a run of SHAPE and I recommend as
+#' # the most convenient wayfor setting your own parameters since this function will
+#' # make appropriate derived settings based on values passed.
+#' # You must at least call it before using runSHAPE() or shapeExperiment().
+#'
+#' # You can see there are a lot of parameters for SHAPE
+#' args(defineSHAPE)
+#' # Here are some default values that were just loaded as options
+#' sapply(c("shape_workDir","shape_save_batchJob","shape_save_batchBase", "shape_simModel"),getOption)
+#' # As an exmaple we change your working directory, the ID of the job and the fitness landscape model
+#' options(list("shape_workDir" = "~/alternativeFolder/","shape_save_batchJob" = 3,
+#' "shape_save_batchBase" = "non_default_Experiment", "shape_simModel" = "NK"))
+#' sapply(c("shape_workDir","shape_save_batchJob","shape_save_batchBase", "shape_simModel"),getOption)
+#' # You can see one of the calculated options, which relates to the batchBase, and
+#' # batchJob (but also batchSet) values:
+#' getOption("shape_save_batchString")
 #' @export
 defineSHAPE <- function(shape_allow_backMutations = TRUE,
                                  shape_collapseString = "__:__",
@@ -3054,9 +3071,25 @@ runReplicate <- function(func_inputFrames, func_currStep, func_stepCounter,
 #' to help with recovery in the middle of a series of replicates.
 #' @param workingReplicates This is the maximum replicate number to to simulated in this call.  It is meaningfully different
 #' from the number of replicates to be run only when loop_thisRep != 1.
+#' @param tmpEnvir_recycleParms This is an environment used to temporarily store loaded RData file objects so that parameters
+#' from previous runs, that were stored in RData, can be read back in as required.
 #'
+#' @examples
+#' # First step is to set parameters for the run, this could be done manually but I
+#' # recommend using the defineSHAPE function which has a default setting for all
+#' # possible parameters and will calculate the value of derived/conditional parameters.
+#' defineSHAPE()
+#' # Now you can run the simulations, you should get printout to your stdout.
+#' \donttest{ runSHAPE() }
+#' # Now go and check the SHAPE working directory, which can be found at:
+#' getOption("shape_workDir")
+#' list.files(getOption("shape_workDir"))
+#' # You'll have an experiment folder as well as post-analysis folder
+#' # created each with appropriate output!
 #' @export
-runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"), workingReplicates = seq(getOption("shape_thisRep"),getOption("shape_maxReplicates"),by=1)){
+runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"),
+                     workingReplicates = seq(getOption("shape_thisRep"),getOption("shape_maxReplicates"),by=1),
+                     tmpEnvir_recycleParms = new.env()){
   # This checks if defineSHAPE is likely to have been run
   if(length(which(grepl("^shape_",names(options())))) <
      length(as.list(args(defineSHAPE))) - 1){
@@ -3116,7 +3149,6 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"), workingReplicate
       tmp_realNames <- getOption("shape_fileName_dataBase")
 
       # We create an environment , into which we can load the existing information so the needed parts can be obtained
-      assign("tmpEnvir_recycleParms", new.env(), pos = ".GlobalEnv")
       tmp_tryFile <- paste(getOption("shape_outDir"),
                            paste(getOption("shape_save_batchString"),
                                  "Parameters",
@@ -3150,7 +3182,7 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"), workingReplicate
                    "shape_save_batchIndex" = tmp_real_batchStrings,
                    "shape_fileName_dataBase" = tmp_realNames))
       # We now remove our loaded parameters to save workspace.
-      rm(tmpEnvir_recycleParms, envir = globalenv())
+      rm(list=ls(, envir = tmpEnvir_recycleParms), envir = tmpEnvir_recycleParms)
 
     } else {
       ### This section builds fitness landscape model objects for the NK, RMF, Additive and Fixed models ###
@@ -3314,7 +3346,6 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"), workingReplicate
       tmp_realNames <- getOption("shape_fileName_dataBase")
 
       # We create an environment, load the values, assign what is needed
-      assign("tmpEnvir_recycleParms", new.env(), pos = ".GlobalEnv")
       tmp_loadFile <- paste(getOption("shape_outDir"),
                             paste(getOption("shape_save_batchString"),
                                   "Parameters",
@@ -3345,7 +3376,7 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"), workingReplicate
                    "shape_save_batchIndex" = tmp_real_batchStrings,
                    "shape_fileName_dataBase" = tmp_realNames))
       # We now remove our loaded parameters to save workspace.
-      rm(tmpEnvir_recycleParms, envir = globalenv())
+      rm(list=ls(, envir = tmpEnvir_recycleParms), envir = tmpEnvir_recycleParms)
     }
     # At this point we check what was the max previously recorded genotypeID and pass this to the run
     options("shape_nextID" = max(unlist(lapply(dbListTables(connections_dataBase$genotypeSpace), function(thisTable){
@@ -3589,7 +3620,7 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"), workingReplicate
 #' and then build a SHAPE experiment by creating all the folder structure, .R and .sh scripts
 #' required to programatically run your experiment -- excluding post-analysis, that's a you problem.
 #'
-#' @param func_filapath_toDesign This is the absolute filepath which points to the SHAPE_experimentalDesign like
+#' @param func_filepath_toDesign This is the absolute filepath which points to the SHAPE_experimentalDesign like
 #' template you'd like used to identify parameter combinations for building your experiment.
 #' @param func_templateDir This is the absolute filepath to a directory on your machine where the SHAPE template
 #' scripts/files have been saved.  They are used by this function to help build your experiment.
@@ -3616,8 +3647,49 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"), workingReplicate
 #' @return If no error is encountered, a message will be returned suggesting the build was successful.  SHAPE makes
 #' no effort to perform validation of this effort to build the experiment and presumes no fatal errors is sufficient evidence.
 #'
+#' @exmaples
+#' # This function relies on script templates which can be found at:
+#' \url{https://github.com/JDench/SHAPE_library/tree/master/SHAPE_templates}
+#' # Once these have been downloaded you can pass the appropriate filepath values to the first two arguments.
+#' # For this example, I'll assume you've installed them to a folder position that is now just under the root of
+#' # your R-environment working directory:
+#'
+#' # However, before runing this we need to parameterise your run of SHAPE, here I call the default parameters
+#' defineSHAPE()
+#' # Now using the default templates we design an experiment folder complete with shell scripts to submit our work programatically.
+#' shapeExperiment(func_filepath_toDesign = "~/SHAPE_templates/SHAPE_experimentalDesign.v.1.r",
+#' func_templateDir = "~/SHAPE_templates/")
+#' # You should be greeted with a message suggesting your experiment is built.  You can find the files now at SHAPE's workingDirectory
+#' getOption("shape_workDir")
+#' list.files(getOption("shape_workDir"))
+#' # Voila!  You can see the spread of variable evolutionary parameters that were considered by looking at yourJob_parameterCombos.table
+#' # which is a tab delimated file, inheriting the name of your experiment as stored in getOption("shape_save_batchBase").
+#' # Now, if your system has more than 2 cores you're willing to dedicate you could change the number of expected parallel cores
+#' # for your experiment.  First though clean up your old files, I suppress the warnings because I'm too lazy to avoid subsetting by non
+#' # folders in the event you don't have permissions to delete folders through R on your system.
+#' suppressWarnings(file.remove(list.files(getOption("shape_workDir"),full.names=TRUE), recursive = TRUE, showWarnings = FALSE))
+#' # You will get a series of TRUE/FALSE returned.
+#' # Now one point to make clear, in the experimental design there is a designation for the working directory and that will overwrite
+#' # whatever you've set prior to running this function.  Don't belive me?
+#' defineSHAPE(shape_workDir = "~/notDefault_tryMe_Folder/") # This will create the folder and some initial elements
+#' shapeExperiment(func_filepath_toDesign = "~/SHAPE_templates/SHAPE_experimentalDesign.v.1.r",
+#'                func_templateDir = "~/SHAPE_templates/", func_maxGrouped_perShell = 4) # But ~/defaultSHAPE/ is where this got written
+#' getOption("shape_workDir")
+#' # See?!  Your current session still holds your parameters all this function did was write out scripts based on parameters in the
+#' # experimentalDesign template script.  If you want to run those version of SHAPE, use the shell scripts or manually call the R scripts
+#' # that wil; be output into each experimental sub-folder.
+#'
+#' # Lastly, you may have R installed elsewhere and so want to have that noted while your experiment is built because the shell scripts
+#' # will need to point to the correct place.
+#' suppressWarnings(file.remove(list.files("~/defaultSHAPE/",full.names=TRUE), recursive = TRUE, showWarnings = FALSE))
+#' # You will get a series of TRUE/FALSE returned.
+#' shapeExperiment(func_filepath_toDesign = "~/SHAPE_templates/SHAPE_experimentalDesign.v.1.r",
+#                func_templateDir = "~/SHAPE_templates/", func_filePath_R = "~/your_R_folder/R_app/bin/R")
+#' # Now obviously the above location likely is not where you installed R, but ideally you get the point.
+#' # The difference is in how the shell scripts were written
+#'
 #' @export
-shapeExperiment <- function(func_filapath_toDesign, func_templateDir,
+shapeExperiment <- function(func_filepath_toDesign, func_templateDir,
                             func_maxGrouped_perShell = 2,
                             func_filePath_R = NULL, func_baseCall = "CMD BATCH",
                             func_rArgs = '"--args shape_thisRep=1 shape_outDir=\'fake_serverPath/fakeDir/\'"',
@@ -3630,12 +3702,12 @@ shapeExperiment <- function(func_filapath_toDesign, func_templateDir,
   #### DID YOU GRAB THE SHAPE TEMPLATE FILES FROM:
   #### IF NOT, THEN THIS ISN'T GOING TO WORK, IF SO THEN THE FOLDER
   #### TO WHERE YOU SAVED THEM SHOULD BE THE ARGUMENT:  func_templateDir
-  #### AND YOUR func_filapath_toDesign ARGUMENT FILE WILL BE A MODIFIED
+  #### AND YOUR func_filepath_toDesign ARGUMENT FILE WILL BE A MODIFIED
   #### (TO REPRESENT YOUR EXPERIMENT )FORM OF THE FILE FROM THOSE TEMPLATES.
 
   # We check that the design template file exists, otherwise this won't matter
-  if(!file.exists(func_filapath_toDesign)){
-    stopError(paste("Could not find the experimental design file at: ",func_filapath_toDesign,sep=""))
+  if(!file.exists(func_filepath_toDesign)){
+    stopError(paste("Could not find the experimental design file at: ",func_filepath_toDesign,sep=""))
   }
   # If not specified, then we look for R installed in common locations
   if(is.null(func_filePath_R)){
@@ -3730,7 +3802,7 @@ shapeExperiment <- function(func_filapath_toDesign, func_templateDir,
     }
   }
   # Step 2: read the input parameters and begin by building the experiment's folders
-  inputParms <- readLines(func_filapath_toDesign)
+  inputParms <- readLines(func_filepath_toDesign)
   inputParms <- inputParms[intersect(intersect(which(!grepl("#",inputParms,fixed=TRUE)),
                                                which(!grepl("[[:space:]]",substr(inputParms,
                                                                                  sapply(nchar(inputParms),function(x){ min(1,x) }),

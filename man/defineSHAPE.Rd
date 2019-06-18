@@ -195,3 +195,21 @@ SHAPE parameters can be changed by calling this function and changing values OR
 by using the accessory SHAPE_parameters script, called in the SHAPE_runBody script.
 This second approach is considered more practical for building and running experiments.
 }
+\examples{
+# This function builds the basic parameters for a run of SHAPE and I recommend as
+# the most convenient wayfor setting your own parameters since this function will
+# make appropriate derived settings based on values passed.
+# You must at least call it before using runSHAPE() or shapeExperiment().
+
+# You can see there are a lot of parameters for SHAPE
+args(defineSHAPE)
+# Here are some default values that were just loaded as options
+sapply(c("shape_workDir","shape_save_batchJob","shape_save_batchBase", "shape_simModel"),getOption)
+# As an exmaple we change your working directory, the ID of the job and the fitness landscape model
+options(list("shape_workDir" = "~/alternativeFolder/","shape_save_batchJob" = 3,
+"shape_save_batchBase" = "non_default_Experiment", "shape_simModel" = "NK"))
+sapply(c("shape_workDir","shape_save_batchJob","shape_save_batchBase", "shape_simModel"),getOption)
+# You can see one of the calculated options, which relates to the batchBase, and
+# batchJob (but also batchSet) values:
+getOption("shape_save_batchString")
+}
