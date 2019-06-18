@@ -55,3 +55,59 @@ This is a function used to read the SHAPE_experimentalDesign type input file
 and then build a SHAPE experiment by creating all the folder structure, .R and .sh scripts
 required to programatically run your experiment -- excluding post-analysis, that's a you problem.
 }
+\examples{
+# This function relies on script templates which can be found at:
+# 'https://github.com/JDench/SHAPE_library/tree/master/SHAPE_templates'
+# Once these have been downloaded you can pass the appropriate filepath values
+# to the first two arguments. For this example, I'll assume you've installed
+# them to a folder position that is now just under the root of your
+# R-environment working directory.
+# However, before runing the function we need to parameterise your run of SHAPE,
+# here I call the default parameters:
+defineSHAPE()
+# Now using the default templates we design an experiment folder complete with
+# shell scripts to submit our work programatically.
+\donttest{shapeExperiment(func_filepath_toDesign = "~/SHAPE_templates/SHAPE_experimentalDesign.v.1.r",
+func_templateDir = "~/SHAPE_templates/")}
+# You should be greeted with a message suggesting your experiment is built.
+# You can find the files now at that script's SHAPE workingDirectory.
+list.files("~/defaultSHAPE/")
+# Voila!  You can see the spread of variable evolutionary parameters that were
+# considered by looking at -- yourJob_parameterCombos.table -- which is a tab
+# delimated file.
+
+# Now, if your system has more than 2 cores you're willing to dedicate you
+# could change the number of expected parallel cores for your experiment.
+# First though clean up your old files, I suppress the warnings because I'm
+# too lazy to avoid subsetting this call by non folders in the event you don't have
+# permissions to delete folders through R on your system.
+suppressWarnings(file.remove(list.files("~/defaultSHAPE/",full.names=TRUE),
+recursive = TRUE, showWarnings = FALSE))
+# You will get a series of TRUE/FALSE returned.
+# Now one point to make clear, in the experimental design there is a designation
+# for the working directory and that will overwrite whatever you've set prior to
+# running this function.  Don't belive me?
+defineSHAPE(shape_workDir = "~/notDefault_tryMe_Folder/")
+# That will have created the folder and some initial elements but...
+\donttest{shapeExperiment(func_filepath_toDesign = "~/SHAPE_templates/SHAPE_experimentalDesign.v.1.r",
+func_templateDir = "~/SHAPE_templates/", func_maxGrouped_perShell = 4)}
+# But ~/defaultSHAPE/ is where this got written because that is
+# a parameter set from the experimentalDesign script.  See your space's option:
+getOption("shape_workDir")
+# See?!  Your current session still holds your parameters all this function did
+# was write out scripts based on parameters in the experimentalDesign template script.
+# If you want to run those version of SHAPE, use the shell scripts or manually call
+# the R scripts that wil; be output into each experimental sub-folder.
+
+# Lastly, you may have R installed elsewhere and so want to have that noted while
+# your experiment is built because the shell scripts will need to point to the correct place.
+suppressWarnings(file.remove(list.files("~/defaultSHAPE/",full.names=TRUE),
+recursive = TRUE, showWarnings = FALSE))
+# You will get a series of TRUE/FALSE returned.
+\donttest{shapeExperiment(func_filepath_toDesign = "~/SHAPE_templates/SHAPE_experimentalDesign.v.1.r",
+func_templateDir = "~/SHAPE_templates/", func_filePath_R = "~/your_R_folder/R_app/bin/R")}
+# Now obviously the above location likely is not where you installed R,
+# but ideally you get the point. The difference is in how the shell scripts were written.
+
+
+}
