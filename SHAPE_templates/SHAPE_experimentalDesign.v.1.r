@@ -33,7 +33,9 @@ shape_toggle_forceCompletion <- FALSE
 
 # This is the root directory for this "experiment" within which all files input/output will be found
 ### NOTE: Each experiment should have their own unique workDir.  BEWARE.
-shape_workDir <- "~/defaultSHAPE/"
+### FURTHER: leaving this as NULL would mean all files are saved to the tempdir(), 
+###				this is not recommended for your sanity and/or using output of SHAPE.
+shape_workDir <- NULL
 
 # This is the unique string literal name you want applied to jobs related to this experiment
 ### WARNING: DO NOT INCLUDE any underscore "_" characters, and try to avoid special symbols
