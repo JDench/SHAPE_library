@@ -72,3 +72,25 @@ This is a wrapper function where the birth and death related parameters of a SHA
 appropriate functions (and their associated methods) are called.  This function will be called once per time step
 of a SHAPE run.
 }
+\examples{
+# Imagine you've got an evolving community of three populations where
+# in each time step 100\% of individuals die and individuals with relateive
+# fitness of 1 produce 2 offspring.  This growth function calculates the births
+# and deaths of that community.
+# First I show you when births are deterministic (proof of implementation):
+growthFunction(func_inSize = c(100,100,100), func_inFitness = c(1,2,1.05),
+func_bProb = 1, func_dProb = 1,
+func_sizeStep = 1, func_growthForm = "exponential", func_drift = FALSE,
+func_deathScale = TRUE)
+# Now same things but with evolutionary drift thrown in
+growthFunction(func_inSize = c(100,100,100), func_inFitness = c(1,2,1.05),
+func_bProb = 1, func_dProb = 1, func_sizeStep = 1,
+func_growthForm = "exponential", func_drift = TRUE, func_deathScale = TRUE)
+# Now technically the values in the birth column is really the net population
+# size and I'd previously set the births to be scaled by deaths but if this were
+# not the case you'd get final population sizes of:
+growthFunction(func_inSize = c(100,100,100), func_inFitness = c(1,2,1.05),
+func_bProb = 1, func_dProb = 1, func_sizeStep = 1,
+func_growthForm = "exponential", func_drift = TRUE, func_deathScale = FALSE)
+
+}

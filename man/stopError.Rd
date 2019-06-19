@@ -16,3 +16,9 @@ This is a convenience wrapper for sending an error and ending the SHAPE run as w
 It will print a message and then traceback() report before pausing and quiting the R session.  This exists
 to help debugging when SHAPE is run in batch-mode.
 }
+\section{Note}{
+
+There is no example as this functions role is to print a message
+and then quit the R run.
+}
+

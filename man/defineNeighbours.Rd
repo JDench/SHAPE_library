@@ -28,3 +28,17 @@ Vector of all the genotypes in the neighbouring mutational space accessible with
 \description{
 The function will identify the binary string of all possible neighbours to a focal genotype.  It is important when querrying the fitness landscape.
 }
+\examples{
+# If you had some individuals with a genome length of 10 sites, and an
+# individual with no mutations, as well as one with a single mutation at
+# position 7, each had a mutant.  This would define the possible one step
+# mutational neighbours.  I also allow back mutations
+defineNeighbours(c(""), func_tmpDirection = FALSE, func_maxHamming = 1,
+                 func_sepString = "_", func_genomeLength = 10)
+defineNeighbours(c("7"), func_tmpDirection = FALSE, func_maxHamming = 1,
+                 func_sepString = "_", func_genomeLength = 10)
+#' # Same idea, but if we allow back-mutations (ie: reversions)
+defineNeighbours(c("7"), func_tmpDirection = TRUE, func_maxHamming = 1,
+                 func_sepString = "_", func_genomeLength = 10)
+
+}

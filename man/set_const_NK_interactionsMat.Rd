@@ -27,3 +27,8 @@ cell values of the columns.
 This is a function to just return a matrix that defines the sitewise dependencies
 for an NK fitness landscape.  If K == 0 or, this is not an NK simulation, it return NULL
 }
+\section{Note}{
+
+There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+}
+

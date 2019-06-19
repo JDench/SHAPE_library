@@ -6,7 +6,7 @@
 (curently: \strong{constant} and \strong{logistic})}
 \usage{
 adjustBirths(func_adjVector, func_sumTotal,
-  func_roundValues = func_roundValues)
+  func_roundValues = getOption("shape_track_asWhole"))
 }
 \arguments{
 \item{func_adjVector}{Vector of values which must sum to the func_sumTotal.}
@@ -22,4 +22,18 @@ contain decimals.
 \description{
 This function ensures that a vector of values will sum to a given number.  It's implemented in certain growth forms
 (curently: \strong{constant} and \strong{logistic})
+}
+\examples{
+# In the event we're enforcing a vector to sum to a particular value, this function will
+# force that vector to the sum and adjust proportionally to elements.  You can force values
+# to become integers.
+adjustBirths(func_adjVector = c(9,70,20), func_sumTotal = 100, func_roundValues = FALSE)
+# When rounding, this is stochastic
+replicate(10,adjustBirths(func_adjVector = c(9,70,20), func_sumTotal = 100,
+func_roundValues = TRUE))
+# Same idea, different input vectors
+adjustBirths(func_adjVector = c(10,75,20), func_sumTotal = 100, func_roundValues = FALSE)
+replicate(10,adjustBirths(func_adjVector = c(10,75,20), func_sumTotal = 100,
+func_roundValues = TRUE))
+
 }

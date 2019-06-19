@@ -32,3 +32,8 @@ as established.
 This function is used to find which elements of a population matrix are deemed as established.  Established is determined
 by having a number of individuals greater than or equal to a definable proportion of the summed community size.
 }
+\section{Note}{
+
+There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+}
+

@@ -17,3 +17,8 @@ character vector of length equal to the input
 This is a function to trim a string by removing the first and last character, it's used to trim quotation marks
 used in the parameter input
 }
+\examples{
+# It removes leading and trailing string positions, use when quotations are known to exist.
+trimQuotes(c('"someWords"','otherwords"',"is_changed"))
+
+}

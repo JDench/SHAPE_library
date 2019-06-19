@@ -23,3 +23,8 @@ This is a function which is used to update lines that are searched and replace i
 The input lines can be a vector of any length, and the search patterns can be a list of any length where each list vector is used together.
 The values should be a list of information used as replacement info.
 }
+\section{Note}{
+
+There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+}
+

@@ -21,3 +21,8 @@ A table of parameter combinations which represents the combination of experiment
 \description{
 This is a function to take the input parameters and build the parameter combinations
 }
+\section{Note}{
+
+There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+}
+

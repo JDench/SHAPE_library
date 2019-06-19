@@ -30,3 +30,8 @@ A character string indicating that the plotting file-s- have been written
 \description{
 This is a file for updating the post analysis plotting script and creating an updated copy in the experiment's folder
 }
+\section{Note}{
+
+There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+}
+

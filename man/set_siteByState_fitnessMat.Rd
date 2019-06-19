@@ -35,3 +35,8 @@ effects of mutations at sites, and Fixed is when user supplied a defined fitness
 describes the entire fitness landscape.  NOTE: This function should likely be called without
 supplying any non-default arguments as it will use the shape_ options defined.
 }
+\section{Note}{
+
+There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+}
+

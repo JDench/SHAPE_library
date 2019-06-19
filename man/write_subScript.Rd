@@ -48,3 +48,8 @@ This function is used to programatically take vectors of paramters and write sui
 that will form part of a SHAPE experiment that is being built for running.  This is a wrapper for writting out
 the suite of necessary scripts to form a run.
 }
+\section{Note}{
+
+There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+}
+

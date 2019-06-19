@@ -27,3 +27,8 @@ This is a function to search our mutational database and then find the binary st
 This function is more efficient when the number of mutations for each genotypeID be passed as this helps reduce
 the tables of the mutational space that are searched.  This matters when large genotypes are simulated.
 }
+\section{Note}{
+
+There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+}
+

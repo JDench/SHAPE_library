@@ -65,3 +65,8 @@ A vector of fitness values to be assgined for each of the newly explored genotyp
 \description{
 This function will calculate the fitness values for genotypes being newly recorded to the fitness landscape.
 }
+\section{Note}{
+
+There is no example as this does not have meaning outisde of a runSHAPE call.
+}
+

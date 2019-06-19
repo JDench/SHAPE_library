@@ -15,3 +15,8 @@ A vector of character string of length equal to input.
 \description{
 This is a function to programatically create R batch submission script names
 }
+\examples{
+# Returns a standard named string
+name_subScript(c("myJob","otherContent"))
+
+}

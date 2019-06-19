@@ -6,7 +6,7 @@
 OR it can work backwards to calculated what was the expected starting population size prior to a step of exponential growth.}
 \usage{
 expGrowth(func_rate, func_step, func_startPop = NULL,
-  func_endPop = NULL, func_basalExponent = exp(1))
+  func_endPop = NULL)
 }
 \arguments{
 \item{func_rate}{This is the number of offpsring expected to be produced by an individual.  When calculating the expected
@@ -23,9 +23,6 @@ if trying to calculated the expected initial size from a final population.}
 
 \item{func_endPop}{This is the final population size(s) for which you want to calculate a initial size.  Leave NULL
 if trying to calculated the expected final size from an initial population.}
-
-\item{func_basalExponent}{This controls the basal exponent of the reverse calculation for exponential growth.  It defaults
-to the natural exponent and sohuld not be changed from that value.  Modify at your own risk.}
 }
 \value{
 numeric value
@@ -33,4 +30,14 @@ numeric value
 \description{
 This function uses the exponential growth model and can either calculated the expected growth for a single time step
 OR it can work backwards to calculated what was the expected starting population size prior to a step of exponential growth.
+}
+\examples{
+# Exponential growth equation implemented but allowing either the final or initial population
+# to be calculated based on whethere the initial or final community size is input.
+expGrowth(func_rate = 2, func_step = 1,func_startPop = 100)
+expGrowth(func_rate = 2, func_step = 1,func_endPop = 200)
+expGrowth(func_rate = 2, func_step = 7,func_startPop = 100)
+# You cannot set a growth rate less than 1 as this would then simulate deaths which is not
+# allowed in this calculation.
+expGrowth(func_rate = c(0.9,1,1.1), func_step = 1,func_startPop = 100)
 }

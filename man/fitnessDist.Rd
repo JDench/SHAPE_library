@@ -21,3 +21,10 @@ A vector of values with length equal to tmpDraws
 \description{
 This is the function that will call for draws from distributions.
 }
+\examples{
+# This draws from distributions
+fitnessDist(10, "Uniform", c(0,1))
+fitnessDist(10, "Normal", c(0,1))
+fitnessDist(10, "exp", 1)
+
+}

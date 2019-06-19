@@ -28,3 +28,9 @@ elements of the split batch name strings
 \description{
 This function is used to build or split character string to be used for naming batches of SHAPE runs.
 }
+\examples{
+# This simply produces or splits a standard named string.
+name_batchString("myTest",1,9,3,FALSE,"_")
+name_batchString("myTest_1_9_3",TRUE,TRUE,TRUE,TRUE,"_")
+
+}

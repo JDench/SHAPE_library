@@ -38,3 +38,9 @@ This is a convenience function to ensure that our population demographics are st
 and exists because R's standard functions can collapse single row frames to named vectors.  It requires that
 all passed vectors be of the same length
 }
+\examples{
+# This returns a data.frame with a standard format
+defineSHAPE()
+reportPopulations(1:3,2:4,c(10,50,100),rep(1,3),
+                 rep(0,3),c(10,10,10),c(1,2,0),c("","0_->_1","2"))
+}

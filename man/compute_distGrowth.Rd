@@ -5,8 +5,8 @@
 \title{This function is used to calculate the effect size and timing of the next stochastic population disturbance in a SHAPE run.}
 \usage{
 compute_distGrowth(func_distFactor, func_growthType, func_distType,
-  func_growthRate, func_popSize, func_focalSize, func_manualGenerations,
-  func_stepDivs)
+  func_growthRate, func_popSize, func_focalSize,
+  func_manualGenerations = NULL, func_stepDivs)
 }
 \arguments{
 \item{func_distFactor}{This is the expected effect size of the disturbance, it should be a named vector with elements
@@ -37,4 +37,18 @@ the number of individuals lost, and the number of steps estimated until the next
 }
 \description{
 This function is used to calculate the effect size and timing of the next stochastic population disturbance in a SHAPE run.
+}
+\examples{
+# This calculates the information for the next planned stochastic disturbance event.
+# Consider a situation where there is a disturbance reducing populations 100 fold,
+# and it occurs either in a proscriptive number of steps, or we calculate it based
+# on recovery time as per the growth rate and growth model parameters.
+compute_distGrowth("bottleneck","exponential","bottleneck",
+                     2,1e4,1e2,5,1)
+compute_distGrowth("bottleneck","exponential","bottleneck",
+                   2,1e4,1e2,NULL,1)
+# If growth is constant or Poisson, then disturbances are effectively supressed
+compute_distGrowth("bottleneck","poisson","bottleneck",
+                   2,1e4,1e2,NULL,1)
+
 }

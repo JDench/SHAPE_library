@@ -32,3 +32,8 @@ A single numeric value, which may be NA if a non Rough Mount Fuji model is being
 In a RMF fitness landscape model, there is a weighting value applied to the independent
 fitness contribution term.  This function calculates that value for the run
 }
+\section{Note}{
+
+There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+}
+

@@ -109,5 +109,4 @@ func_templateDir = "~/SHAPE_templates/", func_filePath_R = "~/your_R_folder/R_ap
 # Now obviously the above location likely is not where you installed R,
 # but ideally you get the point. The difference is in how the shell scripts were written.
 
-
 }

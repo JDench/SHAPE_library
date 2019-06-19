@@ -22,3 +22,9 @@ This is a simple little function used to represent drift by introducing stochast
 by making poisson distribution calls.  At present it forces values to integers because I've not been able to
 implement an appropriate continuous distribution for such calls that works with tested models and expected outcome.
 }
+\examples{
+# This adds drift by making draws from the Poisson distribution with a location parameter based on
+# the elements to which drift is to be added.
+replicate(10,addDrift(c(0.5,1,5,10,14.1)))
+
+}

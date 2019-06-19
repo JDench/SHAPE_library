@@ -49,6 +49,14 @@ rounded to the nearest integer with a probability of being rounded up equal to t
 }
 \value{
 A vector of births with the same length as the vector of population sizes passed.
+
+# Imagine you've got an evolving community of three populations where in each time step individuals with
+# relateive fitness of 1 produce 2 offspring.
+birthFunction(func_inSize = c(100,100,100), func_inFitness = c(1,2,1.05), func_bProb = 1,
+func_sizeStep = 1, func_growthForm = "exponential", func_drift = FALSE)
+# Now with evolutionary drift
+birthFunction(func_inSize = c(100,100,100), func_inFitness = c(1,2,1.05), func_bProb = 1,
+func_sizeStep = 1, func_growthForm = "exponential", func_drift = TRUE)
 }
 \description{
 This function calculates the number of births for the vector of populations which are expected to be passed.

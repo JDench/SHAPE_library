@@ -55,3 +55,8 @@ This returns a list object with several pieces of summary information for the fo
 This is a function to extract genotype/lineage specific information.  This info will be mostly through time style of information
 but will also include information about it's line of descent, growth pressures pre-establishment, and population size.
 }
+\section{Note}{
+
+There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+}
+

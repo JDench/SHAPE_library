@@ -27,3 +27,8 @@ an NK fitness landscape model.  This allows the dependent fitness of sites to be
 once and then referenced as mutations occur.  It makes exploring this style of fitness landscape
 a bit more computationally friendly - as it generally isn't.
 }
+\section{Note}{
+
+There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+}
+

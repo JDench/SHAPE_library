@@ -24,3 +24,10 @@ data detailing the step number being recorded on the named table.
 This is a standardising function which allows SHAPE to programatiically name tables for the step-wise record OR split
 a named table and extract the embedded information from its naming.
 }
+\examples{
+# This creates a table name in a standard way, it can also split table names to extract info.
+defineSHAPE()
+nameTable_step(2,FALSE)
+nameTable_step("Step_2",TRUE)
+
+}

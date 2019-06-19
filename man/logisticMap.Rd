@@ -23,3 +23,14 @@ This is the discrete time logistic growth function known as the logistic map.  I
 in a step of time given by:  N_t+1 = N_t + r * (N_t (K - N_t)/K);
 where N_t is community size at a time point, r is the per step growth rate, and K is the environmental carrying capacity.
 }
+\examples{
+# This is the discrete time step form of the logistic equation, known as the logistic map.
+# It takes a growth rate starting and max possible community size.
+stepwise_Size <- 100
+for(thisStep in 1:7){
+  stepwise_Size <- c(stepwise_Size,
+                     logisticMap(2,stepwise_Size[length(stepwise_Size)],1e4))
+}
+stepwise_Size
+# When a population overshoots, it will loose members.
+}

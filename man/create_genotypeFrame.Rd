@@ -21,3 +21,8 @@ A 4 column data frame with column names of genotypeID, binaryString, fitness, is
 This is a convenience function to ensure that we have a standard shaped data.frame.  It is used to initiate
 a new table for the fitness landscape.
 }
+\examples{
+# This is just a convenience function for outputting vectors in a data.frame with
+# standard named columns.
+create_genotypeFrame(c(1,10,50),c("1","1_7","6_12"),c(1,0.25,1.57))
+}

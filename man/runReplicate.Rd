@@ -56,3 +56,8 @@ and during mutations this is where the mutational landscape is queried and updat
 NOTE: Many of its internal operations are controlled by options with the suffix "shape_" and are
 not explicitly passed as arguments at call to this function.
 }
+\section{Note}{
+
+There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+}
+

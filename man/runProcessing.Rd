@@ -37,3 +37,8 @@ This returns a string vector stating the result of trying to process for the spe
 \description{
 This is a wrapper function to process a SHAPE run and extract meaningful summary information.
 }
+\section{Note}{
+
+There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+}
+

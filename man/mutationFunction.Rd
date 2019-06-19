@@ -22,3 +22,11 @@ A vector of the number of mutants produced by each of the populations represente
 This allows SHAPE to simulate the mutation process as a deterministic value.  At present, values must be tracked as integer results
 for reasons of how I am passing to functions which identify what mutant genotype(s) are created.
 }
+\examples{
+# The number of mutants generated is forcibly integer but is based
+# on the stochastic rounding of the product of the number of potentially
+# mutable individuals and their probability of mutation.
+mutationFunction(c(10,50,100),func_inProb = 0.3)
+replicate(5,mutationFunction(c(10,50,100),func_inProb = 0.35))
+
+}

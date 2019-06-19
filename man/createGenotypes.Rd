@@ -59,3 +59,8 @@ This invisibly returns NULL, this function is to perform work on databases.
 This function searches the nearby mutational space of a focal genotype, identifies which genotypes in that space have not
 yet been identified, and create new database entries for any new genotypes.
 }
+\section{Note}{
+
+There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+}
+

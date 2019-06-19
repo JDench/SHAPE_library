@@ -34,3 +34,17 @@ A vector of the number of deaths caluclated for each of the populations represen
 \description{
 This allows SHAPE to simulate the death process as a deterministic value, and may be density dependent.
 }
+\examples{
+# Imagine you've got an evolving community of three populations where in each time step
+# 100\% of individuals die.
+deathFunction(func_inSize = c(100,50,200), func_inProb = 1)
+# What if their deaths were scaled based on population density,
+# or an environmental carrying capacity?
+deathFunction(func_inSize = c(100,50,200), func_inProb = 1,
+              func_depDensity = TRUE, func_densityMax = 400)
+deathFunction(func_inSize = c(100,50,200), func_inProb = 1,
+              func_depDensity = TRUE, func_densityMax = 500)
+deathFunction(func_inSize = c(100,50,200), func_inProb = 1,
+              func_depDensity = TRUE, func_densityMax = 350)
+
+}

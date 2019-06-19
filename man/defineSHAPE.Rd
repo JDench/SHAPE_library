@@ -40,7 +40,7 @@ defineSHAPE(shape_allow_backMutations = TRUE,
   shape_tmpGenoTable = NULL,
   shape_tmp_selfScript = "~/random_nullFile.txt", shape_use_sigFig = 4,
   shape_toggle_forceCompletion = FALSE, shape_track_asWhole = FALSE,
-  shape_track_distSize = NULL, shape_workDir = "~/defaultSHAPE/")
+  shape_track_distSize = NULL, shape_workDir = NULL)
 }
 \arguments{
 \item{shape_allow_backMutations}{This is a logical toggle controlling if revertant mutants are allowed.}
@@ -187,7 +187,8 @@ maximum number of replicates being completed.}
 \item{shape_track_distSize}{This is a numeric, the size of a disturbance caused by stochastic events.  It is the dilution factor
 or the divisor of the community size.  It must be > 1 or is forced to that value.}
 
-\item{shape_workDir}{This is the main working directory relative to which your SHAPE experiment will be built and run.}
+\item{shape_workDir}{This is the main working directory relative to which your SHAPE experiment will be built and run.  It defaults
+to the -- tempdir -- of R when this value is NULL, I strongly recommend}
 }
 \description{
 These are some global reference options that SHAPE will use and I consider the defaults.
@@ -195,6 +196,13 @@ SHAPE parameters can be changed by calling this function and changing values OR
 by using the accessory SHAPE_parameters script, called in the SHAPE_runBody script.
 This second approach is considered more practical for building and running experiments.
 }
+\section{Warning}{
+
+Please pass a directory filepath to the argument of shape_workDir, rSHAPE will create this so it needn't exist yet.
+If you leave it as the default -- ie NULL -- whatever is created will simply be lost in the temporary folder
+of this R sessions' workspace.
+}
+
 \examples{
 # This function builds the basic parameters for a run of SHAPE and I recommend as
 # the most convenient wayfor setting your own parameters since this function will
@@ -209,7 +217,5 @@ sapply(c("shape_workDir","shape_save_batchJob","shape_save_batchBase", "shape_si
 options(list("shape_workDir" = "~/alternativeFolder/","shape_save_batchJob" = 3,
 "shape_save_batchBase" = "non_default_Experiment", "shape_simModel" = "NK"))
 sapply(c("shape_workDir","shape_save_batchJob","shape_save_batchBase", "shape_simModel"),getOption)
-# You can see one of the calculated options, which relates to the batchBase, and
-# batchJob (but also batchSet) values:
-getOption("shape_save_batchString")
+
 }

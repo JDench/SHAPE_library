@@ -18,3 +18,8 @@ a named list of empty lists.
 This is a convenience script to build an named list of empty lists, where the names are based
 on the genotype IDs being passed.
 }
+\examples{
+# this creates a named list, this trivial function exists for future flexibility and method design.
+buildPedigree(c(1,"zebra","walrus",4))
+
+}

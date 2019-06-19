@@ -35,3 +35,10 @@ which ought to be present for genotypes stored in the named table.
 This is a standardising function which allows SHAPE to programatiically name tables for the fitness landscape OR split
 a named table and extract the embedded information from its naming.
 }
+\examples{
+# This creates a table name in a standard way, it can also split table names to extract info.
+defineSHAPE()
+nameTable(2,1,"myTest","_",FALSE,FALSE)
+nameTable("myTest_2",func_splitName = TRUE)
+
+}

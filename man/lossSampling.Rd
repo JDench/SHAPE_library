@@ -17,3 +17,8 @@ A vector of the resultant population sizes remaining.
 \description{
 This function actually calculates the stochastic loss to populations.
 }
+\examples{
+# A vector of population sizes is randomly sampled to be around the product of size and factor
+replicate(5,lossSampling(c(1e4,2e4,3e4),0.01))
+
+}

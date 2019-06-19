@@ -26,3 +26,8 @@ A character string of genome positions at which there ought to be mutations to b
 This function samples the space of all possible genotypes and then defines
 one that will be considered as the independent fitness contribution global optima.
 }
+\section{Note}{
+
+There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+}
+

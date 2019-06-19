@@ -30,3 +30,8 @@ a vector of character strings, each of which is the found lineage of the func_fo
 \description{
 This function will look through a pedigree data.frame and recursively continue building that back through the history of the SHAPE run being processed.
 }
+\section{Note}{
+
+There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+}
+

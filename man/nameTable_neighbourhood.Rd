@@ -24,3 +24,10 @@ data detailing the genotype ID whose neighbourhood is being recorded on the name
 This is a standardising function which allows SHAPE to programatiically name tables for the neighbourhood record OR split
 a named table and extract the embedded information from its naming.
 }
+\examples{
+# This creates a table name in a standard way, it can also split table names to extract info.
+defineSHAPE()
+nameTable_neighbourhood(2,FALSE)
+nameTable_neighbourhood("Step_2",TRUE)
+
+}

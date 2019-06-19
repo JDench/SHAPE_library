@@ -32,3 +32,13 @@ it can use either an ancestral fitness value or the mean fitness of the passed v
 reference is a value of zero - OR - the func_absDistance is set to TRUE then instead the vector is centered
 around a value of 1 where negative values will be set to zero.
 }
+\examples{
+# This calculates relative fitness values either based on the mean of the community or
+# based on an ancestral fitness value.
+defineSHAPE()
+calc_relativeFitness(c(0.9,1,1.1))
+calc_relativeFitness(c(0.9,1,1.1),func_ancestFit = 0)
+calc_relativeFitness(c(0.9,1,1.1),func_ancestFit = 1)
+calc_relativeFitness(c(0.95,1,1.1))
+
+}

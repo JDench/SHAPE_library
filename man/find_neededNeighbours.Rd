@@ -40,3 +40,8 @@ A vector of the genotypes that need to be created as they've not yet been define
 \description{
 This function querries if a suite of genotypes exist within the fitness landscape database.
 }
+\section{Note}{
+
+There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+}
+

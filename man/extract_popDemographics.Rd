@@ -31,3 +31,8 @@ information.  This includes Fitness, Number of Lineages, and Transitions between
 Most important it will also return the information related to which lineages will eventually establish in the population,
 a piece of information that will be critical for downstream lineage specific information extraction.
 }
+\section{Note}{
+
+There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+}
+

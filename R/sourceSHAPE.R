@@ -127,7 +127,13 @@ NULL
 #' @param shape_track_asWhole This is a logical toggle controlling if population sizes must be tracked as integer values
 #' @param shape_track_distSize This is a numeric, the size of a disturbance caused by stochastic events.  It is the dilution factor
 #' or the divisor of the community size.  It must be > 1 or is forced to that value.
-#' @param shape_workDir This is the main working directory relative to which your SHAPE experiment will be built and run.
+#' @param shape_workDir This is the main working directory relative to which your SHAPE experiment will be built and run.  It defaults
+#' to the -- tempdir -- of R when this value is NULL, I strongly recommend
+#'
+#' @section Warning:
+#' Please pass a directory filepath to the argument of shape_workDir, rSHAPE will create this so it needn't exist yet.
+#' If you leave it as the default -- ie NULL -- whatever is created will simply be lost in the temporary folder
+#' of this R sessions' workspace.
 #'
 #' @examples
 #' # This function builds the basic parameters for a run of SHAPE and I recommend as
@@ -143,9 +149,7 @@ NULL
 #' options(list("shape_workDir" = "~/alternativeFolder/","shape_save_batchJob" = 3,
 #' "shape_save_batchBase" = "non_default_Experiment", "shape_simModel" = "NK"))
 #' sapply(c("shape_workDir","shape_save_batchJob","shape_save_batchBase", "shape_simModel"),getOption)
-#' # You can see one of the calculated options, which relates to the batchBase, and
-#' # batchJob (but also batchSet) values:
-#' getOption("shape_save_batchString")
+#'
 #' @export
 defineSHAPE <- function(shape_allow_backMutations = TRUE,
                                  shape_collapseString = "__:__",
@@ -210,9 +214,18 @@ defineSHAPE <- function(shape_allow_backMutations = TRUE,
                                  shape_toggle_forceCompletion = FALSE,
                                  shape_track_asWhole = FALSE,
                                  shape_track_distSize = NULL,
-                                 shape_workDir = "~/defaultSHAPE/"){
+                                 shape_workDir = NULL){
     # This sets the global options
     options( sapply(ls(),function(envirParms){ eval(as.name(envirParms))  },simplify=FALSE) )
+    # If the user has not defined a working directory, ie: shape_workDir == NULL then we set so here
+    if(is.null(getOption("shape_workDir"))){
+      options("shape_workDir" = gsub('\\','/',tempdir(),fixed=TRUE))
+    }
+    # Also, if the workDir does not end in a trailing '/', we add one
+    if(!grepl("/$",getOption("shape_workDir"))){
+      options("shape_workDir" = paste(getOption("shape_workDir"),'/',sep=""))
+    }
+
     # If the user has not define an explicit shape_death_densityCap, we set it to the focal population
     if(is.null(getOption("shape_death_densityCap"))){
      options("shape_death_densityCap" = getOption("shape_const_focal_popValue"))
@@ -349,6 +362,10 @@ defineSHAPE <- function(shape_allow_backMutations = TRUE,
 #' the genotype IDs of interest for your pedigree.
 #' @return a named list of empty lists.
 #'
+#' @examples
+#' # this creates a named list, this trivial function exists for future flexibility and method design.
+#' buildPedigree(c(1,"zebra","walrus",4))
+#'
 #' @export
 buildPedigree <- function(func_focalID){
   # The pedigree frame is simply a list of lists
@@ -373,6 +390,9 @@ buildPedigree <- function(func_focalID){
 #' charater string.  This collapse is done as a convenience for storage and retrieval.
 #'
 #' @return a vector of character strings, each of which is the found lineage of the func_focalGenotypes
+#'
+#' @section Note:
+#' There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
 #'
 #' @export
 findParent <- function(func_focalGenotype, func_startStep, func_stepMatrix, func_progenitorList,
@@ -427,6 +447,9 @@ findParent <- function(func_focalGenotype, func_startStep, func_stepMatrix, func
 #' @param func_size_timeStep This is the proportion of a standard biological generation which is to be simulated in a single time step.
 #'
 #' @return This return a list object that contains various pieces of usefull summary demographic information.
+#'
+#' @section Note:
+#' There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
 #'
 #' @export
 extract_popDemographics <- function(func_stepsCon, func_estValue, func_landscapeCon, func_hoodCon, func_size_timeStep){
@@ -555,6 +578,9 @@ extract_popDemographics <- function(func_stepsCon, func_estValue, func_landscape
 #' @param func_stringSep A common string separator used to merge information.
 #'
 #' @return This returns a list object with several pieces of summary information for the focal genotype ID.
+#'
+#' @section Note:
+#' There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
 #'
 #' @export
 extractInfo_focalID <- function(func_focalID, func_estValue, func_stepsCon, func_landscapeCon,func_hoodCon, func_refMatrix, func_subNaming,
@@ -861,6 +887,9 @@ extractInfo_focalID <- function(func_focalID, func_estValue, func_stepsCon, func
 #'
 #' @return This returns a string vector stating the result of trying to process for the specified filepath.
 #'
+#' @section Note:
+#' There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+#'
 #' @export
 runProcessing <- function(func_saveFile, func_subNaming, func_stepsCon,
                           func_landscapeCon, func_hoodCon, func_estProp, func_size_timeStep,
@@ -939,6 +968,27 @@ runProcessing <- function(func_saveFile, func_subNaming, func_stepsCon,
 #'
 #' @return A 2 column matrix of numeric values with columns "births" and "deaths", and rownames equal
 #' to func_inIDs (as.character).
+#'
+#' @examples
+#' # Imagine you've got an evolving community of three populations where
+#' # in each time step 100% of individuals die and individuals with relateive
+#' # fitness of 1 produce 2 offspring.  This growth function calculates the births
+#' # and deaths of that community.
+#' # First I show you when births are deterministic (proof of implementation):
+#' growthFunction(func_inSize = c(100,100,100), func_inFitness = c(1,2,1.05),
+#' func_bProb = 1, func_dProb = 1,
+#' func_sizeStep = 1, func_growthForm = "exponential", func_drift = FALSE,
+#' func_deathScale = TRUE)
+#' # Now same things but with evolutionary drift thrown in
+#' growthFunction(func_inSize = c(100,100,100), func_inFitness = c(1,2,1.05),
+#' func_bProb = 1, func_dProb = 1, func_sizeStep = 1,
+#' func_growthForm = "exponential", func_drift = TRUE, func_deathScale = TRUE)
+#' # Now technically the values in the birth column is really the net population
+#' # size and I'd previously set the births to be scaled by deaths but if this were
+#' # not the case you'd get final population sizes of:
+#' growthFunction(func_inSize = c(100,100,100), func_inFitness = c(1,2,1.05),
+#' func_bProb = 1, func_dProb = 1, func_sizeStep = 1,
+#' func_growthForm = "exponential", func_drift = TRUE, func_deathScale = FALSE)
 #'
 #' @export
 growthFunction <- function(func_inSize, func_inFitness, func_bProb, func_dProb, func_deathDen_logical = FALSE, func_deathDen_max = NULL,
@@ -1029,6 +1079,14 @@ growthFunction <- function(func_inSize, func_inFitness, func_bProb, func_dProb, 
 #'
 #' @return A vector of births with the same length as the vector of population sizes passed.
 #'
+#' # Imagine you've got an evolving community of three populations where in each time step individuals with
+#' # relateive fitness of 1 produce 2 offspring.
+#' birthFunction(func_inSize = c(100,100,100), func_inFitness = c(1,2,1.05), func_bProb = 1,
+#' func_sizeStep = 1, func_growthForm = "exponential", func_drift = FALSE)
+#' # Now with evolutionary drift
+#' birthFunction(func_inSize = c(100,100,100), func_inFitness = c(1,2,1.05), func_bProb = 1,
+#' func_sizeStep = 1, func_growthForm = "exponential", func_drift = TRUE)
+#'
 #' @export
 birthFunction <- function(func_inSize, func_inFitness, func_bProb, func_sizeStep, func_growthForm = c("logistic","exponential","constant","poisson"),
                           func_deaths = NULL, func_carryingCapacity = NULL, func_basalRate = NULL, func_deathScale = FALSE, func_drift = TRUE,
@@ -1038,7 +1096,7 @@ birthFunction <- function(func_inSize, func_inFitness, func_bProb, func_sizeStep
     # this is simply exponential growth for our lineage(s) which can be computed by the increase in individuals
     # And we remove the original amount of each population since this value will be added to the existing numbers.
     tmpBirths <- expGrowth(func_rate= func_inFitness * func_bProb *
-                             log(if(!is.null(func_basalRate)){func_basalRate}else{2}),
+                             if(!is.null(func_basalRate)){func_basalRate}else{2},
                            func_step= func_sizeStep,
                            func_startPop= func_inSize) -
       (func_inSize - if(func_deathScale){func_deaths}else{0})
@@ -1153,6 +1211,19 @@ birthFunction <- function(func_inSize, func_inFitness, func_bProb, func_sizeStep
 #'
 #' @return A vector of the number of deaths caluclated for each of the populations represented by the func_inSize vector
 #'
+#' @examples
+#' # Imagine you've got an evolving community of three populations where in each time step
+#' # 100% of individuals die.
+#' deathFunction(func_inSize = c(100,50,200), func_inProb = 1)
+#' # What if their deaths were scaled based on population density,
+#' # or an environmental carrying capacity?
+#' deathFunction(func_inSize = c(100,50,200), func_inProb = 1,
+#'               func_depDensity = TRUE, func_densityMax = 400)
+#' deathFunction(func_inSize = c(100,50,200), func_inProb = 1,
+#'               func_depDensity = TRUE, func_densityMax = 500)
+#' deathFunction(func_inSize = c(100,50,200), func_inProb = 1,
+#'               func_depDensity = TRUE, func_densityMax = 350)
+#'
 #' @export
 deathFunction <- function(func_inSize, func_inProb = 0, func_roundValues = TRUE,
                           func_depDensity = FALSE, func_densityMax = NULL, func_densityPower = 4){
@@ -1187,6 +1258,13 @@ deathFunction <- function(func_inSize, func_inProb = 0, func_roundValues = TRUE,
 #'
 #' @return A vector of the number of mutants produced by each of the populations represented by the func_inSize vector
 #'
+#' @examples
+#' # The number of mutants generated is forcibly integer but is based
+#' # on the stochastic rounding of the product of the number of potentially
+#' # mutable individuals and their probability of mutation.
+#' mutationFunction(c(10,50,100),func_inProb = 0.3)
+#' replicate(5,mutationFunction(c(10,50,100),func_inProb = 0.35))
+#'
 #' @export
 mutationFunction <- function(func_inSize, func_inProb = 0){
   # Calcualte the deterministic value and then update if we are rounding.
@@ -1208,6 +1286,11 @@ mutationFunction <- function(func_inSize, func_inProb = 0){
 #' testing could not identify a continuous distribution which works for obtaining expected results from established models.
 #'
 #' @return A vector of values, with same length as func_inVector
+#'
+#' @examples
+#' # This adds drift by making draws from the Poisson distribution with a location parameter based on
+#' # the elements to which drift is to be added.
+#' replicate(10,addDrift(c(0.5,1,5,10,14.1)))
 #'
 #' @export
 addDrift <- function(func_inVector, func_integerValues = TRUE){
@@ -1245,6 +1328,13 @@ addDrift <- function(func_inVector, func_integerValues = TRUE){
 #'
 #' @return Returns a single value representing the amount of logistic growth expected by the community
 #'
+#' @examples
+#' # This calculates logistic growth based on the mathematical continuous time algorithm
+#' logisticGrowth(func_rate = 2, func_step = 1, func_startPop = 1e2, func_maxPop = 1e4)
+#' # It normally takes log2(D) steps for a binary fission population to reach carrying capacity,
+#' # where D is max/start, in this case D = 100 and so it should take ~ 6.64 turns
+#' logisticGrowth(func_rate = 2, func_step = c(1,2,3,6,6.64,7), func_startPop = 1e2, func_maxPop = 1e4)
+#'
 #' @export
 logisticGrowth <- function(func_rate, func_step, func_startPop = NULL, func_maxPop = NULL, func_midAdjust = 0, func_basalExponent = exp(1)){
   return( func_maxPop / (1+ (((func_maxPop - func_startPop)/(func_startPop)) * func_basalExponent^(-func_rate * (func_step - func_midAdjust))) ) )
@@ -1261,6 +1351,16 @@ logisticGrowth <- function(func_rate, func_step, func_startPop = NULL, func_maxP
 #'
 #' @return A single value as to the expected summed size of evolving populations in the considered environment.
 #'
+#' @examples
+#' # This is the discrete time step form of the logistic equation, known as the logistic map.
+#' # It takes a growth rate starting and max possible community size.
+#' stepwise_Size <- 100
+#' for(thisStep in 1:7){
+#'   stepwise_Size <- c(stepwise_Size,
+#'                      logisticMap(2,stepwise_Size[length(stepwise_Size)],1e4))
+#' }
+#' stepwise_Size
+#' # When a population overshoots, it will loose members.
 #' @export
 logisticMap <- function(func_rate, func_startPop, func_maxPop){
   func_startPop + func_rate * (func_startPop * ((func_maxPop-func_startPop)/func_maxPop))
@@ -1285,22 +1385,29 @@ logisticMap <- function(func_rate, func_startPop, func_maxPop){
 #' if trying to calculated the expected initial size from a final population.
 #' @param func_endPop This is the final population size(s) for which you want to calculate a initial size.  Leave NULL
 #' if trying to calculated the expected final size from an initial population.
-#' @param func_basalExponent This controls the basal exponent of the reverse calculation for exponential growth.  It defaults
-#' to the natural exponent and sohuld not be changed from that value.  Modify at your own risk.
 #'
 #' @return numeric value
 #'
+#' @examples
+#' # Exponential growth equation implemented but allowing either the final or initial population
+#' # to be calculated based on whethere the initial or final community size is input.
+#' expGrowth(func_rate = 2, func_step = 1,func_startPop = 100)
+#' expGrowth(func_rate = 2, func_step = 1,func_endPop = 200)
+#' expGrowth(func_rate = 2, func_step = 7,func_startPop = 100)
+#' # You cannot set a growth rate less than 1 as this would then simulate deaths which is not
+#' # allowed in this calculation.
+#' expGrowth(func_rate = c(0.9,1,1.1), func_step = 1,func_startPop = 100)
 #' @export
-expGrowth <- function(func_rate, func_step,func_startPop = NULL, func_endPop = NULL, func_basalExponent = exp(1)){
+expGrowth <- function(func_rate, func_step,func_startPop = NULL, func_endPop = NULL){
+  func_tmpRate <- (func_rate ^ func_step)
   # If the user has defined a starting population value we assume we're calculating the final value
   if(is.null(func_endPop) && !is.null(func_startPop)){
-    func_tmpRate <- func_basalExponent ^ (func_rate * func_step)
     if(any(func_tmpRate < 1)){ func_tmpRate[which(func_tmpRate < 1)] <- 1 }
     return( func_startPop * func_tmpRate )
 
     # If the user has entered an end value we assume we're calculating the starting value
   } else if(!is.null(func_endPop) && is.null(func_startPop)){
-    return( log(func_endPop,base = func_basalExponent)/(func_rate * func_step) )
+    return( func_endPop/func_tmpRate )
   } else {
     # otherwise we complain that this function is not meant to perform calculation of other terms.
     stop(paste("Not certain which value you wanted calculated since you defined a starting pop of ",func_startPop," and final pop of ",func_endPop," please review",sep=""))
@@ -1318,8 +1425,21 @@ expGrowth <- function(func_rate, func_step,func_startPop = NULL, func_endPop = N
 #' @return A vector of values adjusted to sum to a single value.  These may have been forced to be rounded or could still
 #' contain decimals.
 #'
+#' @examples
+#' # In the event we're enforcing a vector to sum to a particular value, this function will
+#' # force that vector to the sum and adjust proportionally to elements.  You can force values
+#' # to become integers.
+#' adjustBirths(func_adjVector = c(9,70,20), func_sumTotal = 100, func_roundValues = FALSE)
+#' # When rounding, this is stochastic
+#' replicate(10,adjustBirths(func_adjVector = c(9,70,20), func_sumTotal = 100,
+#' func_roundValues = TRUE))
+#' # Same idea, different input vectors
+#' adjustBirths(func_adjVector = c(10,75,20), func_sumTotal = 100, func_roundValues = FALSE)
+#' replicate(10,adjustBirths(func_adjVector = c(10,75,20), func_sumTotal = 100,
+#' func_roundValues = TRUE))
+#'
 #' @export
-adjustBirths <- function(func_adjVector, func_sumTotal, func_roundValues = func_roundValues){
+adjustBirths <- function(func_adjVector, func_sumTotal, func_roundValues = getOption("shape_track_asWhole")){
   # This is a likely redundant validation as we ought not to be in this function unless this is true, but....
   if(sum(func_adjVector) != func_sumTotal){
     func_adjVector <- func_adjVector/sum(func_adjVector) * sum(func_sumTotal)
@@ -1415,6 +1535,9 @@ adjustBirths <- function(func_adjVector, func_sumTotal, func_roundValues = func_
 #' a vector of values.
 #'
 #' @return A vector of fitness values to be assgined for each of the newly explored genotypes defined in the vector tmpGenotypes
+#'
+#' @section Note:
+#' There is no example as this does not have meaning outisde of a runSHAPE call.
 #'
 #' @export
 fitnessLandscape <- function(tmpGenotypes, tmp_focalFitness, landscapeModel = "HoC",
@@ -1550,6 +1673,12 @@ fitnessLandscape <- function(tmpGenotypes, tmp_focalFitness, landscapeModel = "H
 #'
 #' @return A vector of values with length equal to tmpDraws
 #'
+#' @examples
+#' # This draws from distributions
+#' fitnessDist(10, "Uniform", c(0,1))
+#' fitnessDist(10, "Normal", c(0,1))
+#' fitnessDist(10, "exp", 1)
+#'
 #' @export
 fitnessDist <- function(tmpDraws, tmpDistribution, tmpParameters){
   if(tmpDistribution == "Fixed"){
@@ -1616,6 +1745,9 @@ fitnessDist <- function(tmpDraws, tmpDistribution, tmpParameters){
 #' @param ... Additional arguments that may get passed to internal functions.
 #'
 #' @return This invisibly returns NULL, this function is to perform work on databases.
+#'
+#' @section Note:
+#' There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
 #'
 #' @export
 createGenotypes <- function(tmp_focalGenotype, tmp_focalFitness, maxHamming, tmp_landModel = "HoC", tmp_sepString = getOption("shape_sepString"),
@@ -1747,6 +1879,9 @@ createGenotypes <- function(tmp_focalGenotype, tmp_focalFitness, maxHamming, tmp
 #'
 #' @return A vector of the genotypes that need to be created as they've not yet been defined within the fitness landscape.
 #'
+#' @section Note:
+#' There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+#'
 #' @export
 find_neededNeighbours <- function(tmp_possibleNeighbours, tmp_focal_numMuts, tmp_refTables,
                                   maxHamming = getOption("shape_max_numMutations"),
@@ -1805,6 +1940,19 @@ find_neededNeighbours <- function(tmp_possibleNeighbours, tmp_focal_numMuts, tmp
 #'
 #' @return Vector of all the genotypes in the neighbouring mutational space accessible within 1 mutation event
 #'
+#' @examples
+#' # If you had some individuals with a genome length of 10 sites, and an
+#' # individual with no mutations, as well as one with a single mutation at
+#' # position 7, each had a mutant.  This would define the possible one step
+#' # mutational neighbours.  I also allow back mutations
+#' defineNeighbours(c(""), func_tmpDirection = FALSE, func_maxHamming = 1,
+#'                  func_sepString = "_", func_genomeLength = 10)
+#' defineNeighbours(c("7"), func_tmpDirection = FALSE, func_maxHamming = 1,
+#'                  func_sepString = "_", func_genomeLength = 10)
+#' #' # Same idea, but if we allow back-mutations (ie: reversions)
+#' defineNeighbours(c("7"), func_tmpDirection = TRUE, func_maxHamming = 1,
+#'                  func_sepString = "_", func_genomeLength = 10)
+#'
 #' @export
 defineNeighbours <- function(func_tmpGenotype, func_tmpDirection, func_maxHamming = getOption("shape_max_numMutations"),
                              func_sepString = getOption("shape_sepString"), func_genomeLength = getOption("shape_genomeLength")){
@@ -1846,6 +1994,10 @@ defineNeighbours <- function(func_tmpGenotype, func_tmpDirection, func_maxHammin
 #'
 #' @return A 4 column data frame with column names of genotypeID, binaryString, fitness, isExplored
 #'
+#' @examples
+#' # This is just a convenience function for outputting vectors in a data.frame with
+#' # standard named columns.
+#' create_genotypeFrame(c(1,10,50),c("1","1_7","6_12"),c(1,0.25,1.57))
 #' @export
 create_genotypeFrame <- function(tmpID, tmpStrings,tmpFitnesses){
   if(length(tmpStrings) != length(tmpFitnesses)){
@@ -1873,6 +2025,12 @@ create_genotypeFrame <- function(tmpID, tmpStrings,tmpFitnesses){
 #' @return If func_splitName is TRUE, then a vector of table names is returned, it would be best practice to not assume recycling of passed
 #' elements and so pass equally lengthed vectors as input.  If FALSE, we split the table and return the data detailing the number of mutations
 #' which ought to be present for genotypes stored in the named table.
+#'
+#' @examples
+#' # This creates a table name in a standard way, it can also split table names to extract info.
+#' defineSHAPE()
+#' nameTable(2,1,"myTest","_",FALSE,FALSE)
+#' nameTable("myTest_2",func_splitName = TRUE)
 #'
 #' @export
 nameTable <- function(func_tmpMutations, func_tmpIndex = NULL, func_baseString = getOption("shape_string_tableNames"),
@@ -1909,6 +2067,12 @@ nameTable <- function(func_tmpMutations, func_tmpIndex = NULL, func_baseString =
 #' @return If funcSplit is TRUE, then a vector of table names is returned.  If FALSE, we split the table and return the
 #' data detailing the step number being recorded on the named table.
 #'
+#' @examples
+#' # This creates a table name in a standard way, it can also split table names to extract info.
+#' defineSHAPE()
+#' nameTable_step(2,FALSE)
+#' nameTable_step("Step_2",TRUE)
+#'
 #' @export
 nameTable_step <- function(func_Index, funcSplit = FALSE, func_sepString = getOption("shape_sepString")){
   # This checks if we're asking for the name to be split or not
@@ -1933,6 +2097,12 @@ nameTable_step <- function(func_Index, funcSplit = FALSE, func_sepString = getOp
 #' @return If funcSplit is TRUE, then a vector of table names is returned.  If FALSE, we split the table and return the
 #' data detailing the genotype ID whose neighbourhood is being recorded on the named table.
 #'
+#' @examples
+#' # This creates a table name in a standard way, it can also split table names to extract info.
+#' defineSHAPE()
+#' nameTable_neighbourhood(2,FALSE)
+#' nameTable_neighbourhood("Step_2",TRUE)
+#'
 #' @export
 nameTable_neighbourhood <- function(func_Index, funcSplit = FALSE, func_sepString = getOption("shape_sepString")){
   # This checks if we're asking for the name to be split or not
@@ -1956,6 +2126,11 @@ nameTable_neighbourhood <- function(func_Index, funcSplit = FALSE, func_sepStrin
 #' connection is made/refreshed to the filepath in func_conName", or any other value will cause disconnection
 #'
 #' @return An SQLite connection object to an SQLite database.
+#'
+#' @examples
+#' # This function can be called to set, resset SQL connections
+#' \donttest{testCon <- resetDatabase("testCon")}
+#' \donttest{dbDisconnect(testCon)}
 #'
 #' @export
 resetDatabase <- function(func_conName, func_existingCon = NULL, func_type = "connect"){
@@ -1989,6 +2164,11 @@ resetDatabase <- function(func_conName, func_existingCon = NULL, func_type = "co
 #'
 #' @return A data frame with columns named as per func_reportMat_colnames.
 #'
+#' @examples
+#' # This returns a data.frame with a standard format
+#' defineSHAPE()
+#' reportPopulations(1:3,2:4,c(10,50,100),rep(1,3),
+#'                  rep(0,3),c(10,10,10),c(1,2,0),c("","0_->_1","2"))
 #' @export
 reportPopulations <- function(func_numMuts, func_genotypeID, func_popSizes, func_fitnesses, func_births, func_deaths, func_mutants, func_progenitor,
                               func_reportMat_colnames = getOption("shape_reportMat_colnames")){
@@ -2026,6 +2206,9 @@ reportPopulations <- function(func_numMuts, func_genotypeID, func_popSizes, func
 #' @param func_landscapeCon This is the filepath to an SQLite database storing information for the complete explored and neighbouring fitness landscape of a SHAPE run.
 #'
 #' @return This returns a vector of character strings that represent the binary strings of the genotypes
+#'
+#' @section Note:
+#' There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
 #'
 #' @export
 retrieve_binaryString <- function(func_genotypeID, func_numMuts = NULL, func_subNaming,
@@ -2086,9 +2269,22 @@ retrieve_binaryString <- function(func_genotypeID, func_numMuts = NULL, func_sub
 #' @return A named vector with three elements describing the simulated reduction factor of populations,
 #' the number of individuals lost, and the number of steps estimated until the next disturbance.
 #'
+#' @examples
+#' # This calculates the information for the next planned stochastic disturbance event.
+#' # Consider a situation where there is a disturbance reducing populations 100 fold,
+#' # and it occurs either in a proscriptive number of steps, or we calculate it based
+#' # on recovery time as per the growth rate and growth model parameters.
+#' compute_distGrowth("bottleneck","exponential","bottleneck",
+#'                      2,1e4,1e2,5,1)
+#' compute_distGrowth("bottleneck","exponential","bottleneck",
+#'                    2,1e4,1e2,NULL,1)
+#' # If growth is constant or Poisson, then disturbances are effectively supressed
+#' compute_distGrowth("bottleneck","poisson","bottleneck",
+#'                    2,1e4,1e2,NULL,1)
+#'
 #' @export
 compute_distGrowth <- function(func_distFactor, func_growthType, func_distType, func_growthRate,
-                               func_popSize, func_focalSize, func_manualGenerations, func_stepDivs){
+                               func_popSize, func_focalSize, func_manualGenerations = NULL, func_stepDivs){
   # If the growth form is constant growth them we simply return that there will never be a disturbance
   # If the user has not set a number of generations prior to disturbance we set this as a large number.
   if(is.element(func_growthType, c("poisson","constant"))){
@@ -2146,6 +2342,10 @@ compute_distGrowth <- function(func_distFactor, func_growthType, func_distType, 
 #'
 #' @return A vector of the resultant population sizes remaining.
 #'
+#' @examples
+#' # A vector of population sizes is randomly sampled to be around the product of size and factor
+#' replicate(5,lossSampling(c(1e4,2e4,3e4),0.01))
+#'
 #' @export
 lossSampling <- function(func_inPopulation, func_dilutionFactor){
   # Here, the loss experienced is quite simply based on the the size of each lineage
@@ -2169,6 +2369,11 @@ lossSampling <- function(func_inPopulation, func_dilutionFactor){
 #'
 #' @return Either a vector of character strings for the created batch names, or a matrix with the decomposed
 #' elements of the split batch name strings
+#'
+#' @examples
+#' # This simply produces or splits a standard named string.
+#' name_batchString("myTest",1,9,3,FALSE,"_")
+#' name_batchString("myTest_1_9_3",TRUE,TRUE,TRUE,TRUE,"_")
 #'
 #' @export
 name_batchString <- function(funcBase, func_setID = NULL, func_jobID = NULL, func_repID = NULL,
@@ -2227,6 +2432,15 @@ name_batchString <- function(funcBase, func_setID = NULL, func_jobID = NULL, fun
 #'
 #' @return A vector of relative fitness values of length equal to the input vector.
 #'
+#' @examples
+#' # This calculates relative fitness values either based on the mean of the community or
+#' # based on an ancestral fitness value.
+#' defineSHAPE()
+#' calc_relativeFitness(c(0.9,1,1.1))
+#' calc_relativeFitness(c(0.9,1,1.1),func_ancestFit = 0)
+#' calc_relativeFitness(c(0.9,1,1.1),func_ancestFit = 1)
+#' calc_relativeFitness(c(0.95,1,1.1))
+#'
 #' @export
 calc_relativeFitness <- function(func_fitVector, func_ancestFit = NULL, func_weights = NULL,
                                  func_absDistance = (getOption("shape_simModel") == "RMF")){
@@ -2284,6 +2498,9 @@ calc_relativeFitness <- function(func_fitVector, func_ancestFit = NULL, func_wei
 #' @return A subset form of the input func_inMatrix matrix object containing the populations which are calculated
 #' as established.
 #'
+#' @section Note:
+#' There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+#'
 #' @export
 querryEstablished <- function(func_inMatrix, func_sizeCol = "popSize", func_fitCol = "fitness", func_estProp = 0.01){
   if(is.numeric(func_estProp)){
@@ -2312,6 +2529,10 @@ querryEstablished <- function(func_inMatrix, func_sizeCol = "popSize", func_fitC
 #' to help debugging when SHAPE is run in batch-mode.
 #' @param func_message The message to be sent to screen prior to ending the R session.
 #'
+#' @section Note:
+#' There is no example as this functions role is to print a message
+#' and then quit the R run.
+#'
 #' @export
 stopError <- function(func_message){
   stop(func_message)
@@ -2327,6 +2548,10 @@ stopError <- function(func_message){
 #' @param funcIn a vector of character strings which you want trimmed
 #'
 #' @return character vector of length equal to the input
+#'
+#' @examples
+#' # It removes leading and trailing string positions, use when quotations are known to exist.
+#' trimQuotes(c('"someWords"','otherwords"',"is_changed"))
 #'
 #' @export
 trimQuotes <- function(funcIn){ substr(funcIn,2,nchar(funcIn)-1) }
@@ -2347,6 +2572,10 @@ addQuotes <- function(funcIn){ paste('"',funcIn,'"',sep="") }
 #' @param inVar This is the vector of character string(s) to be used for naming
 #'
 #' @return A vector of character string of length equal to input.
+#'
+#' @examples
+#' # Returns a standard named string
+#' name_subScript(c("myJob","otherContent"))
 #'
 #' @export
 name_subScript <- function(inVar){
@@ -2370,6 +2599,10 @@ name_batchSubmit <- function(inVar){
 #'
 #' @return A vector of character string of length equal to input.
 #'
+#' @examples
+#' # Returns a standard named string
+#' name_bodyScript(c("myJob","otherContent"))
+#'
 #' @export
 name_bodyScript <- function(inVar){
   paste("SHAPE_body_",inVar,".r",sep="")
@@ -2380,6 +2613,10 @@ name_bodyScript <- function(inVar){
 #' @param inVar This is the vector of character string(s) to be used for naming
 #'
 #' @return A vector of character string of length equal to input.
+#'
+#' @examples
+#' # Returns a standard named string
+#' name_parameterScript(c("myJob","otherContent"))
 #'
 #' @export
 name_parameterScript <- function(inVar){
@@ -2403,6 +2640,9 @@ name_parameterScript <- function(inVar){
 #'
 #' @return A contextually meaningful matrix describing fitness effects of mutations/genotypes,
 #' where based on the context NULL may be returned.
+#'
+#' @section Note:
+#' There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
 #'
 #' @export
 set_siteByState_fitnessMat <- function(func_simModel = getOption("shape_simModel"),
@@ -2498,6 +2738,9 @@ set_siteByState_fitnessMat <- function(func_simModel = getOption("shape_simModel
 #'
 #' @return Either the dependent sitewise fitness contributions in an NK fitness landscape, or NA.
 #'
+#' @section Note:
+#' There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+#'
 #' @export
 set_DepbySite_ancestFitness <- function(func_simModel = getOption("shape_simModel"),
                                         func_const_siteBystate_fitnessMat = getOption("shape_const_siteBystate_fitnessMat"),
@@ -2529,6 +2772,9 @@ set_DepbySite_ancestFitness <- function(func_simModel = getOption("shape_simMode
 #' and so if we want to calculate "c" we return the product of theta and sqrt of variance in the distribution
 #'
 #' @return A single numeric value, which may be NA if a non Rough Mount Fuji model is being simulated
+#'
+#' @section Note:
+#' There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
 #'
 #' @export
 set_RMF_indWeight <- function(func_simModel = getOption("shape_simModel"), func_numDraws = 1e8,
@@ -2562,6 +2808,9 @@ set_RMF_indWeight <- function(func_simModel = getOption("shape_simModel"), func_
 #' @return Either NULL, or a matrix with K + 1 columns, detailing the sites
 #' interacting with a focal site - identified by the row number and the
 #' cell values of the columns.
+#'
+#' @section Note:
+#' There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
 #'
 #' @export
 set_const_NK_interactionsMat <- function(func_simModel = getOption("shape_simModel"), func_genomeLength = getOption("shape_genomeLength"),
@@ -2597,6 +2846,9 @@ set_const_NK_interactionsMat <- function(func_simModel = getOption("shape_simMod
 #' @param func_sepString This is the string collapse separator used in the run
 #'
 #' @return A character string of genome positions at which there ought to be mutations to be optimal
+#'
+#' @section Note:
+#' There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
 #'
 #' @export
 set_const_RMF_globalOptima <- function(func_simModel = getOption("shape_simModel"), func_genomeLength = getOption("shape_genomeLength"),
@@ -2648,6 +2900,9 @@ set_const_RMF_globalOptima <- function(func_simModel = getOption("shape_simModel
 #'
 #' @return Returns a new list of 2 data.frames reporting on the state of SHAPE community for the last 2 time steps -
 #' ie: the one just run, and the most prior step.
+#'
+#' @section Note:
+#' There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
 #'
 #' @export
 runReplicate <- function(func_inputFrames, func_currStep, func_stepCounter,
@@ -3882,6 +4137,10 @@ shapeExperiment <- function(func_filepath_toDesign, func_templateDir,
   if(is.null(inputParms$shape_death_densityCap) || inputParms$shape_death_densityCap == "NULL"){
     inputParms$shape_death_densityCap <- inputParms$shape_const_focal_popValue
   }
+  # Now also, if is.null(inputParms[["shape_workDir"]]), we set to tempdir()
+  if(is.null(inputParms[["shape_workDir"]]) || inputParms[["shape_workDir"]] == "NULL"){
+    inputParms[["shape_workDir"]] <- paste('"',gsub('\\','/',tempdir(),fixed=TRUE),'"',sep="")
+  }
 
   # This ensures that file pathing objects have terminal slashes
   for(thisObject in c("shape_workDir")){
@@ -3985,6 +4244,9 @@ shapeExperiment <- function(func_filepath_toDesign, func_templateDir,
 #' @param func_sepString This is the common string used to collapse information.
 #'
 #' @return A character string that should indicate the experiment has been created.  Otheriwse this has failed.
+#'
+#' @section Note:
+#' There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
 #'
 #' @export
 write_subScript <- function(func_subScipt, func_outDir, func_inCombos, func_inParms, func_maxJobs,
@@ -4097,6 +4359,9 @@ write_subScript <- function(func_subScipt, func_outDir, func_inCombos, func_inPa
 #'
 #' @return A character string indicating that the plotting file-s- have been written
 #'
+#' @section Note:
+#' There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+#'
 #' @export
 writeParameters <- function(func_infile, func_inParms, func_inCombos, func_outDir, func_bodyScript,
                             func_ExternalStopper, func_sepString = getOption("shape_sepString")){
@@ -4157,6 +4422,9 @@ writeParameters <- function(func_infile, func_inParms, func_inCombos, func_outDi
 #'
 #' @return A vector of character strings that has now been updated.
 #'
+#' @section Note:
+#' There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
+#'
 #' @export
 updateLines <- function(func_inLines,func_searchPattern, func_values){
   # There is an asssumption that the searchPattern and values are equally named
@@ -4213,6 +4481,9 @@ updateLines <- function(func_inLines,func_searchPattern, func_values){
 #' @param func_condRef This is the reference indetifiers for grouped parameter combinations which are conditional on others.
 #'
 #' @return A table of parameter combinations which represents the combination of experimental parameters for a SHAPE experiment.
+#'
+#' @section Note:
+#' There is no example as this cannot work outisde of a runSHAPE call, it requires data produced by the simulation experiment.
 #'
 #' @export
 shapeCombinations <- function(func_inLines, func_comboRef, func_indepRef, func_condRef){

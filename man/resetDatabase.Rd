@@ -22,3 +22,9 @@ An SQLite connection object to an SQLite database.
 \description{
 This is a convenience function to refresh connections to database files.
 }
+\examples{
+# This function can be called to set, resset SQL connections
+\donttest{testCon <- resetDatabase("testCon")}
+\donttest{dbDisconnect(testCon)}
+
+}

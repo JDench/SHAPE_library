@@ -36,3 +36,11 @@ K = the curves maximum value, k = the steepness of the curve (growth rate), and 
 it includes parameters to change the midpoint as well as change the natural exponent (ie: exp) to some other value.
 NOTE: This is for continuous growth, and since SHAPE is discrete at present this is an unused function.
 }
+\examples{
+# This calculates logistic growth based on the mathematical continuous time algorithm
+logisticGrowth(func_rate = 2, func_step = 1, func_startPop = 1e2, func_maxPop = 1e4)
+# It normally takes log2(D) steps for a binary fission population to reach carrying capacity,
+# where D is max/start, in this case D = 100 and so it should take ~ 6.64 turns
+logisticGrowth(func_rate = 2, func_step = c(1,2,3,6,6.64,7), func_startPop = 1e2, func_maxPop = 1e4)
+
+}
