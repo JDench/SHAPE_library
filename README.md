@@ -1,7 +1,7 @@
 # SHAPE_library
 Simulated Haploid Asexual Population Evolution (SHAPE)
 
-This is SHAPE modified to be an R library rather than an assemblage of scripts.  I've re-tooled the script set with which I developed SHAPE so that they run in this R-library/package with the improved runtime offered by compilation.  There are only three functions that an average user would really ever need, these are:
+This is SHAPE modified to be an R library rather than an assemblage of scripts.  I've re-tooled the script set with which I developed SHAPE (found here: {https://github.com/JDench/SHAPE}) so that they form this R-library/package with the improved runtime offered by compilation.  There are only three functions that an average user would really ever need, these are:
 
 defineSHAPE() - Call this after loading the library as it will initialise a set of parameters (as global options).  Once familiar with SHAPE, and ready to manually change parameters, you can call this function while passing arguments in order to override defaults.
 designExperiment() - Call this if you want to build an in silico experiment for a breadth of parameters.  Read more about the function to understand the arguments to pass but, in short you'll find in this Git repository there are the SHAPE_templates, in which you'll find the experimentalDesign.v.#.r file where you can define parameters which will be used to create your experiment.  This experimental design will create directories on your machine as well as shell scripts to automatically run the experiment.  Enjoy!
