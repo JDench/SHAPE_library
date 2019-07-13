@@ -12,7 +12,8 @@ shapeExperiment(func_filepath_toDesign, func_templateDir,
   func_rArgs = "\\"--args shape_thisRep=1 shape_outDir='fake_serverPath/fakeDir/'\\"",
   func_remoteLocation = "$TMPDISK", func_submitArgs = c(number_ofCores
   = "-c 1", memory = "--mem=8192", jobName = "-J fakeJob", wallTime =
-  "-t 14-00:00:00", fileOut = "-o fakeOut"))
+  "-t 14-00:00:00", fileOut = "-o fakeOut"), func_processingCores = 1,
+  func_suppressOld_summaryFiles = FALSE)
 }
 \arguments{
 \item{func_filepath_toDesign}{This is the absolute filepath which points to the SHAPE_experimentalDesign like
@@ -45,6 +46,13 @@ You can add more arguments if your server requires this, they'll get used.
 BUT where the job's name MUST be identified as ---  fakeJob   ----  and the output log as  --- fakeOut ---, you can change the argument queues
 I also assume your remote server will create a local directory on the compute nodes whre your job once submitted,
 and that there will be the location defined by func_remoteLocation.}
+
+\item{func_processingCores}{This is the number of parallel cores you would like the summairseExperiment() to call
+when trying to process your experimental output.}
+
+\item{func_suppressOld_summaryFiles}{Logical flag controlling if your summariseExperiment() will delete old output
+summary files.  setting to FALSE (default) is ideal if you could ever expect you might need to restart whereas
+TRUE becomes practical if you are worried you'd have updated output to process and you want to ensure a fresh processing start.}
 }
 \value{
 If no error is encountered, a message will be returned suggesting the build was successful.  SHAPE makes
@@ -67,45 +75,21 @@ required to programatically run your experiment -- excluding post-analysis, that
 defineSHAPE()
 # Now using the default templates we design an experiment folder complete with
 # shell scripts to submit our work programatically.
+# NOTE: Again, this example assumes you've downloaded the templates and placed
+#        them at the next filepath and directory-path locations
 \donttest{shapeExperiment(func_filepath_toDesign = "~/SHAPE_templates/SHAPE_experimentalDesign.v.1.r",
-func_templateDir = "~/SHAPE_templates/")}
+                             func_templateDir = "~/SHAPE_templates/")}
 # You should be greeted with a message suggesting your experiment is built.
 # You can find the files now at that script's SHAPE workingDirectory.
-list.files("~/defaultSHAPE/")
-# Voila!  You can see the spread of variable evolutionary parameters that were
+list.files(getOption("shape_workDir"))
+# Voila!  You can go see the spread of variable evolutionary parameters that were
 # considered by looking at -- yourJob_parameterCombos.table -- which is a tab
 # delimated file.
-
-# Now, if your system has more than 2 cores you're willing to dedicate you
-# could change the number of expected parallel cores for your experiment.
-# First though clean up your old files, I suppress the warnings because I'm
-# too lazy to avoid subsetting this call by non folders in the event you don't have
-# permissions to delete folders through R on your system.
-suppressWarnings(file.remove(list.files("~/defaultSHAPE/",full.names=TRUE),
-recursive = TRUE, showWarnings = FALSE))
-# You will get a series of TRUE/FALSE returned.
-# Now one point to make clear, in the experimental design there is a designation
-# for the working directory and that will overwrite whatever you've set prior to
-# running this function.  Don't belive me?
-defineSHAPE(shape_workDir = "~/notDefault_tryMe_Folder/")
-# That will have created the folder and some initial elements but...
-\donttest{shapeExperiment(func_filepath_toDesign = "~/SHAPE_templates/SHAPE_experimentalDesign.v.1.r",
-func_templateDir = "~/SHAPE_templates/", func_maxGrouped_perShell = 4)}
-# But ~/defaultSHAPE/ is where this got written because that is
-# a parameter set from the experimentalDesign script.  See your space's option:
-getOption("shape_workDir")
-# See?!  Your current session still holds your parameters all this function did
-# was write out scripts based on parameters in the experimentalDesign template script.
-# If you want to run those version of SHAPE, use the shell scripts or manually call
-# the R scripts that wil; be output into each experimental sub-folder.
-
 # Lastly, you may have R installed elsewhere and so want to have that noted while
 # your experiment is built because the shell scripts will need to point to the correct place.
-suppressWarnings(file.remove(list.files("~/defaultSHAPE/",full.names=TRUE),
-recursive = TRUE, showWarnings = FALSE))
-# You will get a series of TRUE/FALSE returned.
 \donttest{shapeExperiment(func_filepath_toDesign = "~/SHAPE_templates/SHAPE_experimentalDesign.v.1.r",
-func_templateDir = "~/SHAPE_templates/", func_filePath_R = "~/your_R_folder/R_app/bin/R")}
+                             func_templateDir = "~/SHAPE_templates/",
+                             func_filePath_R = "~/your_R_folder/R_app/bin/R")}
 # Now obviously the above location likely is not where you installed R,
 # but ideally you get the point. The difference is in how the shell scripts were written.
 

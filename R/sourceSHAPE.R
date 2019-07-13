@@ -13,13 +13,6 @@
 #setwd("C:/Users/Jonathan/Documents/Programming/MyScripts/SHAPE/SHAPE")
 #system("R CMD Rd2pdf . --title=rSHAPE --output=./SHAPE_manual.pdf --force --no-clean --internals")
 
-# Here are the library dependencies
-#require(abind) # This allows me to bind array objects along any dimension, including creating new ones.
-#require(RSQLite) # This allows SQL database calls
-#require(DBI) # This allows database interface
-#require(sn) # This allows the skewwed normal distribution
-#require(evd) # This allows the extreme value distributions to be used.
-#require(VGAM) # This includes the Fretchet distribution to be called
 # But, I've found from reading that when building our library we actually use the import functions
 # and with Roxygen2 I use the following nomenclature that gets set to NAMESPACE
 #' @importFrom abind abind
@@ -31,7 +24,21 @@
 #' @importFrom utils read.csv write.table
 #' @import RSQLite
 #' @import DBI
+#' @importFrom foreach foreach %dopar%
+#' @importFrom snow makeCluster stopCluster
+#' @importFrom doSNOW registerDoSNOW
+#'
 NULL
+
+# Here are the library dependencies
+library(abind) # This allows me to bind array objects along any dimension, including creating new ones.
+library(RSQLite) # This allows SQL database calls
+library(DBI) # This allows database interface
+library(sn) # This allows the skewwed normal distribution
+library(VGAM) # This includes the Fretchet distribution to be called
+library(evd) # This allows the extreme value distributions to be used.
+library(foreach) # This is for parallel processing
+library(doSNOW) # This is for parallel backend robust to OS.
 
 
 ###################################################################################################
@@ -78,6 +85,7 @@ NULL
 #' @param shape_death_densityCorrelation This is a positive numeric controlling the rate at which density dependent deaths increase from
 #' minimal to maximal effect.  Where 1 is linear, > 1 creates an exponential form of curve and values < 1 will create a root function curve.
 #' @param shape_death_densityCap If deaths are density dependent this is the maximal community size for when deaths are 100\% expected.
+#' @param shape_envString This is a string used for programatically creating workspace environments for rSHAPE
 #' @param shape_externalSelfing This is the logical toggle controlling if replicates are to be handled as individual external calls
 #' rather than through the normal internal for loop.  It has limited value and was desgined for when you work on compute nodes with
 #' limited wall time.
@@ -95,6 +103,7 @@ NULL
 #' @param shape_muts_onlyBirths This is a logical flag to control if mutants only appear as a result of birth events.
 #' @param shape_nextID This is the next genotype ID to be assigned for a genotype that get's created.
 #' @param shape_numGenerations This is the number of generations to be simulated in the run.
+#' @param shape_objectStrings This is a named character vector which are the string prefixes used when programatically naming objects.
 #' @param shape_postDir This is the filepath to the directory where post-analysis results will be stored.
 #' @param shape_recycle_repStart This is the first replicate being simulated once a SHAPE call is made.
 #' @param shape_results_removeSteps This is a logical flag controlling if the steps log is removed after being processed.
@@ -104,6 +113,8 @@ NULL
 #' @param shape_save_batchJob This is an integer value for the batch of this experiment associated to this job.
 #' @param shape_scaleGrowth_byDeaths This is a logical flag that controls if growth is scaled by deaths so that the growth
 #' form follows standard expectations.
+#' @param shape_sepLines This is a string character that is used in collapsing multiple elements into a single character string
+#' though namely employed in the summariseExperiment function.
 #' @param shape_sepString This is a string character that is used for collpasing vectors of information into a single
 #' character string, and subsequently splitting that information back out.
 #' @param shape_serverFarm This is a logical flag of whether or not your simulations are going to be run on a remote server
@@ -147,8 +158,11 @@ NULL
 #' sapply(c("shape_workDir","shape_save_batchJob","shape_save_batchBase", "shape_simModel"),getOption)
 #' # As an exmaple we change your working directory, the ID of the job and the fitness landscape model
 #' options(list("shape_workDir" = "~/alternativeFolder/","shape_save_batchJob" = 3,
-#' "shape_save_batchBase" = "non_default_Experiment", "shape_simModel" = "NK"))
+#'                "shape_save_batchBase" = "non_default_Experiment", "shape_simModel" = "NK"))
 #' sapply(c("shape_workDir","shape_save_batchJob","shape_save_batchBase", "shape_simModel"),getOption)
+#' # NOTE: that manually setting the options will not create a new working directory for rSHAPE,
+#' # you would need to do this yourself or could simply pass these arguments through a call
+#' # to defineSHAPE().
 #'
 #' @export
 defineSHAPE <- function(shape_allow_backMutations = TRUE,
@@ -177,6 +191,7 @@ defineSHAPE <- function(shape_allow_backMutations = TRUE,
                                  shape_death_byDensity = TRUE,
                                  shape_death_densityCorrelation = 4,
                                  shape_death_densityCap = NULL,
+                                 shape_envString = "shapeEnvir",
                                  shape_externalSelfing = FALSE,
                                  shape_external_stopFile = "someNamed.file",
                                  shape_finalDir = NULL,
@@ -189,6 +204,8 @@ defineSHAPE <- function(shape_allow_backMutations = TRUE,
                                  shape_muts_onlyBirths = FALSE,
                                  shape_nextID = 0,
                                  shape_numGenerations = 100,
+                                 shape_objectStrings = c("popDemographics" = "popDemo",
+                                                         "repeatability" = "evoRepeat"),
                                  shape_postDir = NULL,
                                  shape_recycle_repStart = 1,
                                  shape_results_removeSteps = TRUE,
@@ -201,6 +218,7 @@ defineSHAPE <- function(shape_allow_backMutations = TRUE,
                                  shape_save_batchJob = 1,
                                  shape_scaleGrowth_byDeaths = TRUE,
                                  shape_sepString = "_",
+                                 shape_sepLines = "__and__",
                                  shape_serverFarm = FALSE,
                                  shape_simModel = "HoC",
                                  shape_size_timeStep = 1,
@@ -271,12 +289,33 @@ defineSHAPE <- function(shape_allow_backMutations = TRUE,
       options("shape_finalDir" = getOption("shape_outDir"))
     }
     # You could change this name, but I don't see why you'd need to and so for convenience I define it here.
-    options("shape_processedData_fileName" = paste(getOption("shape_postDir"),
+    options("shape_processedData_filePattern" = paste("processed_runData_from_",
+                                                      getOption("shape_save_batchBase"),
+                                                      sep=""))
+    options("shape_processedData_fileName" = paste(getOption("shape_outDir"),
                                                    "processed_runData_from_",
                                                    getOption("shape_save_batchString"),
                                                    "_",
                                                    getOption("shape_thisRep"),
                                                    ".RData",sep=""))
+    # These are more optional filenames for an experiments secondary processing
+    # These are filenames for information of collected batches of data
+    options("shape_procExp_filenames" = c("fileList"= paste(getOption("shape_postDir"),
+                                                                        "allFiles_from_",
+                                                                        getOption("shape_save_batchBase"),
+                                                                        ".RData",sep=""),
+                                                       "parameters"= paste(getOption("shape_postDir"),
+                                                                           "jobParameters_from_",
+                                                                           getOption("shape_save_batchBase"),
+                                                                           ".RData",sep=""),
+                                                       "popDemographics"= paste(getOption("shape_postDir"),
+                                                                                "popDemographics_from_",
+                                                                                getOption("shape_save_batchBase"),
+                                                                                ".RData",sep=""),
+                                                       "repeatability"= paste(getOption("shape_postDir"),
+                                                                              "repeatabilityData_from_",
+                                                                              getOption("shape_save_batchBase"),
+                                                                              ".RData",sep="")))
 
     # These are options that are not the be changed unless you're commited to recoding some-to-all of SHAPE's body.
     options( list("shape_max_numMutations" = 1,
@@ -454,7 +493,7 @@ findParent <- function(func_focalGenotype, func_startStep, func_stepMatrix, func
 #' @export
 extract_popDemographics <- function(func_stepsCon, func_estValue, func_landscapeCon, func_hoodCon, func_size_timeStep){
   # We find the ordered series of step tables that we'll be calling in this extaction process
-  func_allTables <- unlist(dbListTables(func_stepsCon))
+  func_allTables <- unlist(RSQLite::dbListTables(func_stepsCon))
   # We now order that set to an ascending series
   func_allTables <- func_allTables[order(as.numeric(nameTable_step(func_allTables,funcSplit = TRUE)), decreasing = FALSE)]
   # Now we establish some reporting lists the first is the general fitness and the next the number of lineages information
@@ -588,7 +627,7 @@ extractInfo_focalID <- function(func_focalID, func_estValue, func_stepsCon, func
                                 func_allow_backMutations = getOption("shape_allow_backMutations"), func_descentSep = getOption("shape_string_lineDescent"),
                                 func_hoodExplore = getOption("shape_const_hoodDepth"), func_stringSep = getOption("shape_sepString")){
   # We find the ordered series of step tables that we'll be calling in this extaction process
-  func_allTables <- unlist(dbListTables(func_stepsCon))
+  func_allTables <- unlist(RSQLite::dbListTables(func_stepsCon))
   # We now order that set to a decreasing series
   func_allTables <- func_allTables[order(as.numeric(nameTable_step(func_allTables,funcSplit = TRUE)), decreasing = TRUE)]
   # I also order the focalID's
@@ -727,7 +766,7 @@ extractInfo_focalID <- function(func_focalID, func_estValue, func_stepsCon, func
   }
 
   # We need to know which fitness landscape tables exist
-  func_landTables <- dbListTables(func_landscapeCon)
+  func_landTables <- RSQLite::dbListTables(func_landscapeCon)
   # Great, now we start building a matrix which displays neighbourhood information for all unique transitions.
   # We find a unique transition by looking at the lineages at all intermediate positions between two values.
   func_uniqueTransitions <- unique(unlist(lapply(strsplit(as.character(unique(unlist(c(func_endLineages, func_nonendLineages)))), func_descentSep),function(thisLineage){
@@ -784,7 +823,7 @@ extractInfo_focalID <- function(func_focalID, func_estValue, func_stepsCon, func
   # So we now look at the neighbourhood of the parental types and find where the fitness of the offspring fits within this
   # That will tell us what was the rank of the transition.  I won't gather information about the extent of neighbourhood
   # exploration, I have no distinct use for this information and its calculation is costly with respect to time.
-  func_hoodTables <- dbListTables(func_hoodCon)
+  func_hoodTables <- RSQLite::dbListTables(func_hoodCon)
   # If there have been no transitions we return a NULL value, else the data.frame expected
   func_rankMat <- if(is.null(func_uniqueTransitions)){
     NULL
@@ -976,19 +1015,21 @@ runProcessing <- function(func_saveFile, func_subNaming, func_stepsCon,
 #' # and deaths of that community.
 #' # First I show you when births are deterministic (proof of implementation):
 #' growthFunction(func_inSize = c(100,100,100), func_inFitness = c(1,2,1.05),
-#' func_bProb = 1, func_dProb = 1,
-#' func_sizeStep = 1, func_growthForm = "exponential", func_drift = FALSE,
-#' func_deathScale = TRUE)
+#'                   func_bProb = 1, func_dProb = 1,
+#'                   func_sizeStep = 1, func_growthForm = "exponential",
+#'                   func_drift = FALSE, func_deathScale = TRUE)
 #' # Now same things but with evolutionary drift thrown in
 #' growthFunction(func_inSize = c(100,100,100), func_inFitness = c(1,2,1.05),
-#' func_bProb = 1, func_dProb = 1, func_sizeStep = 1,
-#' func_growthForm = "exponential", func_drift = TRUE, func_deathScale = TRUE)
+#'                func_bProb = 1, func_dProb = 1, func_sizeStep = 1,
+#'                func_growthForm = "exponential", func_drift = TRUE,
+#'                func_deathScale = TRUE)
 #' # Now technically the values in the birth column is really the net population
 #' # size and I'd previously set the births to be scaled by deaths but if this were
 #' # not the case you'd get final population sizes of:
 #' growthFunction(func_inSize = c(100,100,100), func_inFitness = c(1,2,1.05),
-#' func_bProb = 1, func_dProb = 1, func_sizeStep = 1,
-#' func_growthForm = "exponential", func_drift = TRUE, func_deathScale = FALSE)
+#'                    func_bProb = 1, func_dProb = 1, func_sizeStep = 1,
+#'                    func_growthForm = "exponential", func_drift = TRUE,
+#'                    func_deathScale = FALSE)
 #'
 #' @export
 growthFunction <- function(func_inSize, func_inFitness, func_bProb, func_dProb, func_deathDen_logical = FALSE, func_deathDen_max = NULL,
@@ -1431,12 +1472,14 @@ expGrowth <- function(func_rate, func_step,func_startPop = NULL, func_endPop = N
 #' # to become integers.
 #' adjustBirths(func_adjVector = c(9,70,20), func_sumTotal = 100, func_roundValues = FALSE)
 #' # When rounding, this is stochastic
-#' replicate(10,adjustBirths(func_adjVector = c(9,70,20), func_sumTotal = 100,
-#' func_roundValues = TRUE))
+#' replicate(10,adjustBirths(func_adjVector = c(9,70,20),
+#'                           func_sumTotal = 100,
+#'                           func_roundValues = TRUE))
 #' # Same idea, different input vectors
 #' adjustBirths(func_adjVector = c(10,75,20), func_sumTotal = 100, func_roundValues = FALSE)
-#' replicate(10,adjustBirths(func_adjVector = c(10,75,20), func_sumTotal = 100,
-#' func_roundValues = TRUE))
+#' replicate(10,adjustBirths(func_adjVector = c(10,75,20),
+#'                              func_sumTotal = 100,
+#'                              func_roundValues = TRUE))
 #'
 #' @export
 adjustBirths <- function(func_adjVector, func_sumTotal, func_roundValues = getOption("shape_track_asWhole")){
@@ -1648,7 +1691,6 @@ fitnessLandscape <- function(tmpGenotypes, tmp_focalFitness, landscapeModel = "H
     } else {
       stop("There was a problem trying to use the Fixed fitness landscape model, review input make certain all possible genotypes are declared.")
       Sys.sleep(20)
-      q(save="no")
     }
   }# This is the fitnessVec creation closing
 
@@ -1699,14 +1741,14 @@ fitnessDist <- function(tmpDraws, tmpDistribution, tmpParameters){
   }  else if(tmpDistribution == "exp") {
     return( rexp(tmpDraws, rate = tmpParameters[1]) )
   }  else if(tmpDistribution == "evd") {
-    return( rgev(tmpDraws, loc = tmpParameters[1], scale = tmpParameters[2], shape = tmpParameters[3]) )
+    return( evd::rgev(tmpDraws, loc = tmpParameters[1], scale = tmpParameters[2], shape = tmpParameters[3]) )
   }  else if(tmpDistribution == "rweibull") {
-    return( rrweibull(tmpDraws, loc = tmpParameters[1], scale = tmpParameters[2], shape = tmpParameters[3]) )
+    return( evd::rrweibull(tmpDraws, loc = tmpParameters[1], scale = tmpParameters[2], shape = tmpParameters[3]) )
   }  else if(tmpDistribution == "frechet") {
-    return( rfrechet(tmpDraws, location = tmpParameters[1], scale = tmpParameters[2], shape = tmpParameters[3]) )
+    return( VGAM::rfrechet(tmpDraws, location = tmpParameters[1], scale = tmpParameters[2], shape = tmpParameters[3]) )
   } else if(tmpDistribution == "skewNorm") {
     # We set the location parameter to 1.05 so the mean is near 1 defined by the omega and alpha
-    tmpReturn <- rsn(tmpDraws, xi = tmpParameters[1], omega = tmpParameters[2], alpha = tmpParameters[3], tau = tmpParameters[4])
+    tmpReturn <- sn::rsn(tmpDraws, xi = tmpParameters[1], omega = tmpParameters[2], alpha = tmpParameters[3], tau = tmpParameters[4])
     # This distribution allows for negative value space, thus we adjust....
     tmpReturn[which(tmpReturn < 0)] <- 0
     return( as.vector(tmpReturn) )
@@ -1766,7 +1808,7 @@ createGenotypes <- function(tmp_focalGenotype, tmp_focalFitness, maxHamming, tmp
   }
 
   # We'll need to query what tables are within the database, both within this function and the tmp_found_neededNeighbours call
-  tmp_dbTables <- dbListTables(tmp_genCon)
+  tmp_dbTables <- RSQLite::dbListTables(tmp_genCon)
   #startTime <- proc.time() # This is for reporting on run times but is not needed....
   # We now search for which neighbours already exist within our SQL database
   tmp_found_neededNeighbours <- find_neededNeighbours(tmp_possibleNeighbours = tmp_currNeighbours,
@@ -1889,7 +1931,7 @@ find_neededNeighbours <- function(tmp_possibleNeighbours, tmp_focal_numMuts, tmp
                                   tmpDirection = getOption("shape_allow_backMutations"), tmpRange_numMuts = NULL, tmp_genCon){
   #startTime <- proc.time() # This is for reporting on run times but is not needed....
   # If we haven't been passed the vector of all tables in our reference database, then we define it here
-  if(is.null(tmp_refTables)){ tmp_refTables <- dbListTables(tmp_genCon) }
+  if(is.null(tmp_refTables)){ tmp_refTables <- RSQLite::dbListTables(tmp_genCon) }
   # Now we find which of these are not elements of binaryStrings already within our database, we look for possible neighbours that are not
   # found within the database (called using the select function of "dplyr"
   # This is started by querrying for binaryStrings from among meaningfull tables in our database , we define which meaningful tables exist:
@@ -2129,18 +2171,19 @@ nameTable_neighbourhood <- function(func_Index, funcSplit = FALSE, func_sepStrin
 #'
 #' @examples
 #' # This function can be called to set, resset SQL connections
-#' \donttest{testCon <- resetDatabase("testCon")}
-#' \donttest{dbDisconnect(testCon)}
+#' fileName_testCon <- paste(tempdir(),"/testCon.sqlite",sep="")
+#' testCon <- reset_shapeDB(fileName_testCon)
+#' reset_shapeDB(testCon, func_type = "disconnect")
 #'
 #' @export
-resetDatabase <- function(func_conName, func_existingCon = NULL, func_type = "connect"){
+reset_shapeDB <- function(func_conName, func_existingCon = NULL, func_type = "connect"){
   # Now we either open or close the connection for the conName passed
   if(func_type == "connect"){
     # If there is an existing connection we'll close it
-    if(!is.null(func_existingCon)){ dbDisconnect(func_existingCon) }
-    return( dbConnect(SQLite(), func_conName) )
+    if(!is.null(func_existingCon)){ RSQLite::dbDisconnect(func_existingCon) }
+    return( RSQLite::dbConnect(RSQLite::SQLite(), func_conName) )
   } else {
-    return( dbDisconnect(SQLite(), func_conName) )
+    return( RSQLite::dbDisconnect(func_conName) )
   }
 }
 
@@ -2214,7 +2257,7 @@ reportPopulations <- function(func_numMuts, func_genotypeID, func_popSizes, func
 retrieve_binaryString <- function(func_genotypeID, func_numMuts = NULL, func_subNaming,
                                   func_landscapeCon){
   # We find the needed tables by using the func_numMuts value passed
-  tmp_refTables <- dbListTables(func_landscapeCon)
+  tmp_refTables <- RSQLite::dbListTables(func_landscapeCon)
   # If we've been informed about the number of mutations this ID has, then we subset our tables
   if(!is.null(func_numMuts)){
     tmp_refTables <- tmp_refTables[which(grepl(nameTable(func_numMuts, func_subNaming = func_subNaming), tmp_refTables))]
@@ -2230,7 +2273,7 @@ retrieve_binaryString <- function(func_genotypeID, func_numMuts = NULL, func_sub
   # I don't use recursion to avoid being caught in an infinite loop, and instead put a crash out marker
   if(nrow(func_tmpReturn) == 0){
     func_tmpReturn <- dbGetQuery(func_landscapeCon, paste("SELECT binaryString,isExplored FROM ",
-                                                          dbListTables(func_landscapeCon),
+                                                          RSQLite::dbListTables(func_landscapeCon),
                                                           ' WHERE genotypeID IN(',
                                                           paste(func_genotypeID,collapse=","),
                                                           ')',
@@ -2537,8 +2580,7 @@ querryEstablished <- function(func_inMatrix, func_sizeCol = "popSize", func_fitC
 stopError <- function(func_message){
   stop(func_message)
   traceback()
-  Sys.sleep(20)
-  q(save="no")
+  Sys.sleep(5)
 }
 
 
@@ -2622,6 +2664,59 @@ name_bodyScript <- function(inVar){
 name_parameterScript <- function(inVar){
   paste("SHAPE_parameters_",inVar,".r",sep="")
 }
+
+
+#' This quick little function is a means for me to create the strings of
+#' environments and subsequently extract information back out.
+#'
+#' @param func_Index This is the vector of numeric, or otherwise unique ID values for the
+#' environments to be created.  Or if funcSplit == TRUE, then these are the names to be split.
+#' @param funcSplit A logical toggle of whether you are building or splitting the name
+#' @param funcBase This is the character string used as a prefix to identify environment objects
+#'
+#' @return A vector of character string of length equal to input.
+#'
+#' @examples
+#' # Returns a standard named string
+#' test_envNames <- nameEnviron(1:10)
+#' nameEnviron(test_envNames, funcSplit = TRUE)
+#' @export
+nameEnviron <- function(func_Index, funcSplit = FALSE, funcBase = getOption("shape_envString")){
+  # This checks if we're asking for the name to be split or not
+  if(funcSplit){
+    # We return only the second piece of information given the setup of this function's naming practice.
+    return( unlist(lapply(strsplit(func_Index,"_e_"),function(x){ x[2] })) )
+  } else {
+    return( paste(funcBase,func_Index,sep="_e_") )
+  }
+}
+
+
+
+#' This quick little function is a means for me to create the strings of
+#' environments and subsequently extract information back out.
+#'
+#' @param func_inString This is the vector of numeric, or otherwise unique ID values for the
+#' environments to be created.  Or if funcSplit == TRUE, then these are the names to be split.
+#' @param func_splitStr A logical toggle of whether you are building or splitting the name
+#' @param func_inPrefix This is the character string used as a prefix to identify environment objects
+#'
+#' @return A vector of character string of length equal to input.
+#'
+#' @examples
+#' # Returns a standard named string
+#' test_objectNames <- nameObject(1:10, "testObject")
+#' nameObject(test_objectNames, "testObject", func_splitStr = TRUE)
+#' @export
+nameObject <- function(func_inString, func_inPrefix, func_splitStr = FALSE){
+  if(func_splitStr){
+    unlist(lapply(strsplit(func_inString, func_inPrefix),function(x){ x[length(x)] }))
+  } else {
+    paste(func_inPrefix, func_inString,sep="")
+  }
+}
+
+
 
 
 
@@ -2710,9 +2805,10 @@ set_siteByState_fitnessMat <- function(func_simModel = getOption("shape_simModel
   if(is.element(func_simModel,c("NK","Additive"))){
     if(!is.matrix(func_tmpReturn)){
       if(length(func_tmpReturn) != 2){
-        print("There was a problem trying to create the <shape_const_siteBystate_fitnessMat> matrix, it's length was ",
-                length(func_tmpReturn),"please review",sep="")
-        q(save="no")
+        stopError(paste("There was a problem trying to create the <shape_const_siteBystate_fitnessMat> matrix, it's length was ",
+                        length(func_tmpReturn),
+                       "please review",
+                       sep=""))
       } else {
         func_tmpReturn <- matrix(func_tmpReturn,
                                 nrow=1,
@@ -3064,7 +3160,7 @@ runReplicate <- function(func_inputFrames, func_currStep, func_stepCounter,
     for(thisLineage in rownames(num_birthDeaths)[which(num_birthDeaths[,"mutants"] > 0)] ){
       # This re-opens the connections so we can access the fitness landscape object.
       connections_dataBase <- sapply(names(func_fileName_dataBase),function(x){
-        resetDatabase(paste(getOption("shape_outDir"), func_fileName_dataBase[[x]],sep=""),
+        reset_shapeDB(paste(getOption("shape_outDir"), func_fileName_dataBase[[x]],sep=""),
                       func_type = "connect")
       })
       # We define the focal genotype we're working with
@@ -3079,7 +3175,7 @@ runReplicate <- function(func_inputFrames, func_currStep, func_stepCounter,
         # I'm interested in how often this sanity check is used...
         print(paste("Safety net for mis-classified genotypeID has been used for ", this_focalGenotype," on step ",func_currStep,sep=""))
         # We look through all of the tables and return the one who has a search result for our genotypeID
-        tmp_mutSearch <- sapply(nameTable(dbListTables(connections_dataBase$genotypeSpace), func_splitName = TRUE), function(this_numMuts){
+        tmp_mutSearch <- sapply(nameTable(RSQLite::dbListTables(connections_dataBase$genotypeSpace), func_splitName = TRUE), function(this_numMuts){
           return( nrow(retrieve_binaryString(func_genotypeID = as.numeric(thisLineage),
                                              func_numMuts = as.numeric(this_numMuts),
                                              func_subNaming = getOption("shape_db_splitTables"),
@@ -3099,7 +3195,7 @@ runReplicate <- function(func_inputFrames, func_currStep, func_stepCounter,
       }
       # We check to see if thisLineage is already within the neighbourhood reference database, this is a time saving database.
       tmp_allNeighbours <- NULL
-      if(is.element(nameTable_neighbourhood(thisLineage),dbListTables(connections_dataBase$nearestNeighbours))){
+      if(is.element(nameTable_neighbourhood(thisLineage),RSQLite::dbListTables(connections_dataBase$nearestNeighbours))){
         tmp_allNeighbours <- dbGetQuery(connections_dataBase$nearestNeighbours,
                                         paste("SELECT * FROM ",nameTable_neighbourhood(thisLineage),sep=""))$neighbours
       } else {
@@ -3140,7 +3236,7 @@ runReplicate <- function(func_inputFrames, func_currStep, func_stepCounter,
       # Now for the mutants that were drawn from the neighbourhood, we go and retrieve the information from the fitness landscape database.
       # To know where to find our mutant information we find the number of mutations for the mutant, then go search those for the genotype.
       tmp_numMuts <- unlist(lapply(strsplit(names(newMutants),getOption("shape_sepString")),length))
-      tmp_dbTables <- dbListTables(connections_dataBase$genotypeSpace)
+      tmp_dbTables <- RSQLite::dbListTables(connections_dataBase$genotypeSpace)
       tmp_dbTables <- tmp_dbTables[unique(unlist(lapply(nameTable(unique(tmp_numMuts)),function(thisString){
                                                     which(grepl(thisString,tmp_dbTables))
                                                   })))]
@@ -3288,7 +3384,7 @@ runReplicate <- function(func_inputFrames, func_currStep, func_stepCounter,
     tmp_stepChanges[rownames(num_birthDeaths),"mutants"]
 
   connections_dataBase <- sapply(names(func_fileName_dataBase),function(x){
-    resetDatabase(paste(getOption("shape_outDir"), func_fileName_dataBase[[x]],sep=""),
+    reset_shapeDB(paste(getOption("shape_outDir"), func_fileName_dataBase[[x]],sep=""),
                   func_type = "connect")
   })
   # We ensure the population state, at the end of this step, is in proper format shape
@@ -3357,7 +3453,7 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"),
     # We set the loop's rep to be the shape_thisRep
     options("shape_thisRep"=loop_thisRep)
     # We now update the processed filename
-    options("shape_processedData_fileName" = paste(getOption("shape_postDir"),
+    options("shape_processedData_fileName" = paste(getOption("shape_outDir"),
                                                    "processed_runData_from_",
                                                    getOption("shape_save_batchString"),
                                                    "_",
@@ -3486,7 +3582,7 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"),
     # This creates our SQL Lite database which will hold our growing landscape and reporting objects, this is done since our method
     # may (and is intended to) create large objects which are best not held in R directly.  If the connections exist, this resets them.
     connections_dataBase <- sapply(names(getOption("shape_fileName_dataBase")),function(x){
-      resetDatabase(paste(getOption("shape_outDir"), getOption("shape_fileName_dataBase")[[x]],sep=""),
+      reset_shapeDB(paste(getOption("shape_outDir"), getOption("shape_fileName_dataBase")[[x]],sep=""),
                     func_type = "connect")
     })
 
@@ -3499,7 +3595,7 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"),
     # This is the fitness landscape database
     if(!getOption("shape_run_isRecycling")["Landscape"]  ||
        c(getOption("shape_thisRep") == getOption("shape_recycle_repStart")  &&
-         length(dbListTables(connections_dataBase$genotypeSpace)) == 0) ){
+         length(RSQLite::dbListTables(connections_dataBase$genotypeSpace)) == 0) ){
       options("shape_tmpGenoTable" = create_genotypeFrame(getOption("shape_nextID"),
                                                           "",
                                                           if(getOption("shape_const_relativeFitness")){
@@ -3634,7 +3730,7 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"),
       rm(list=ls(, envir = tmpEnvir_recycleParms), envir = tmpEnvir_recycleParms)
     }
     # At this point we check what was the max previously recorded genotypeID and pass this to the run
-    options("shape_nextID" = max(unlist(lapply(dbListTables(connections_dataBase$genotypeSpace), function(thisTable){
+    options("shape_nextID" = max(unlist(lapply(RSQLite::dbListTables(connections_dataBase$genotypeSpace), function(thisTable){
       dbGetQuery(connections_dataBase$genotypeSpace,
                  paste("SELECT MAX(genotypeID) FROM ", thisTable,sep=""))
     }))) + 1)
@@ -3661,7 +3757,7 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"),
       if(!is.element(nameTable_step(thisStep - 1),names(current_workMatrix))){
         # We open the connections, load the population states of the last step, then close the connection.
         connections_dataBase <- sapply(names(getOption("shape_fileName_dataBase")),function(x){
-          resetDatabase(paste(getOption("shape_outDir"), getOption("shape_fileName_dataBase")[[x]],sep=""),
+          reset_shapeDB(paste(getOption("shape_outDir"), getOption("shape_fileName_dataBase")[[x]],sep=""),
                         func_type = "connect")
         })
         # We load the SHAPE community state of the last step
@@ -3710,13 +3806,13 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"),
     }
 
     connections_dataBase <- sapply(names(getOption("shape_fileName_dataBase")),function(x){
-      resetDatabase(paste(getOption("shape_outDir"), getOption("shape_fileName_dataBase")[[x]],sep=""),
+      reset_shapeDB(paste(getOption("shape_outDir"), getOption("shape_fileName_dataBase")[[x]],sep=""),
                     func_type = "connect")
     })
     # Now for all unexplored mutational spaces around existing genotypes, we define that neighbourhood.
-    tmpTables <- dbListTables(connections_dataBase$timeStep_States)
+    tmpTables <- RSQLite::dbListTables(connections_dataBase$timeStep_States)
     all_lastGenotypes <- dbReadTable(connections_dataBase$timeStep_States,
-                                     dbListTables(connections_dataBase$timeStep_States)[which.max(as.numeric(nameTable_step(tmpTables, funcSplit = TRUE)))])
+                                     RSQLite::dbListTables(connections_dataBase$timeStep_States)[which.max(as.numeric(nameTable_step(tmpTables, funcSplit = TRUE)))])
     # We check if there are any established lineages that need to have their local neighbourhood defined.
     establishedGenotypes <- querryEstablished(func_inMatrix= all_lastGenotypes,
                                               func_estProp = getOption("shape_const_estProp"))
@@ -3751,18 +3847,17 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"),
 
     # This is a reporting call, it will be in the stdout.
     if(getOption("shape_toggle_forceCompletion")  &&
-       thisStep != (getOption("shape_numGenerations") / getOption("shape_size_timeStep"))){
-      print("There was a problem and the main body run did not complete, please review")
-      q(save="no")
+        thisStep != (getOption("shape_numGenerations") / getOption("shape_size_timeStep"))){
+        stopError("There was a problem and the main body run did not complete, please review")
     } else if(thisStep == (getOption("shape_numGenerations") / getOption("shape_size_timeStep"))) {
-      print("Simulations completed without crashing ")
+        print("Simulations completed without crashing ")
     } else {
-      print("Simulation code reached end of loop ")
+        print("Simulation code reached end of loop ")
     }
 
     ######### Now the results of the run are processed. ##############
     connections_dataBase <- sapply(names(getOption("shape_fileName_dataBase")),function(x){
-      resetDatabase(paste(getOption("shape_outDir"),
+      reset_shapeDB(paste(getOption("shape_outDir"),
                           getOption("shape_fileName_dataBase")[[x]],
                           sep=""),
                     func_type = "connect")
@@ -3898,6 +3993,11 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"),
 #' BUT where the job's name MUST be identified as ---  fakeJob   ----  and the output log as  --- fakeOut ---, you can change the argument queues
 #' I also assume your remote server will create a local directory on the compute nodes whre your job once submitted,
 #' and that there will be the location defined by func_remoteLocation.
+#' @param func_processingCores This is the number of parallel cores you would like the summairseExperiment() to call
+#' when trying to process your experimental output.
+#' @param func_suppressOld_summaryFiles Logical flag controlling if your summariseExperiment() will delete old output
+#' summary files.  setting to FALSE (default) is ideal if you could ever expect you might need to restart whereas
+#' TRUE becomes practical if you are worried you'd have updated output to process and you want to ensure a fresh processing start.
 #'
 #' @return If no error is encountered, a message will be returned suggesting the build was successful.  SHAPE makes
 #' no effort to perform validation of this effort to build the experiment and presumes no fatal errors is sufficient evidence.
@@ -3914,45 +4014,21 @@ runSHAPE <- function(loop_thisRep = getOption("shape_thisRep"),
 #' defineSHAPE()
 #' # Now using the default templates we design an experiment folder complete with
 #' # shell scripts to submit our work programatically.
+#' # NOTE: Again, this example assumes you've downloaded the templates and placed
+#' #        them at the next filepath and directory-path locations
 #' \donttest{shapeExperiment(func_filepath_toDesign = "~/SHAPE_templates/SHAPE_experimentalDesign.v.1.r",
-#' func_templateDir = "~/SHAPE_templates/")}
+#'                              func_templateDir = "~/SHAPE_templates/")}
 #' # You should be greeted with a message suggesting your experiment is built.
 #' # You can find the files now at that script's SHAPE workingDirectory.
-#' list.files("~/defaultSHAPE/")
-#' # Voila!  You can see the spread of variable evolutionary parameters that were
+#' list.files(getOption("shape_workDir"))
+#' # Voila!  You can go see the spread of variable evolutionary parameters that were
 #' # considered by looking at -- yourJob_parameterCombos.table -- which is a tab
 #' # delimated file.
-#'
-#' # Now, if your system has more than 2 cores you're willing to dedicate you
-#' # could change the number of expected parallel cores for your experiment.
-#' # First though clean up your old files, I suppress the warnings because I'm
-#' # too lazy to avoid subsetting this call by non folders in the event you don't have
-#' # permissions to delete folders through R on your system.
-#' suppressWarnings(file.remove(list.files("~/defaultSHAPE/",full.names=TRUE),
-#' recursive = TRUE, showWarnings = FALSE))
-#' # You will get a series of TRUE/FALSE returned.
-#' # Now one point to make clear, in the experimental design there is a designation
-#' # for the working directory and that will overwrite whatever you've set prior to
-#' # running this function.  Don't belive me?
-#' defineSHAPE(shape_workDir = "~/notDefault_tryMe_Folder/")
-#' # That will have created the folder and some initial elements but...
-#' \donttest{shapeExperiment(func_filepath_toDesign = "~/SHAPE_templates/SHAPE_experimentalDesign.v.1.r",
-#' func_templateDir = "~/SHAPE_templates/", func_maxGrouped_perShell = 4)}
-#' # But ~/defaultSHAPE/ is where this got written because that is
-#' # a parameter set from the experimentalDesign script.  See your space's option:
-#' getOption("shape_workDir")
-#' # See?!  Your current session still holds your parameters all this function did
-#' # was write out scripts based on parameters in the experimentalDesign template script.
-#' # If you want to run those version of SHAPE, use the shell scripts or manually call
-#' # the R scripts that wil; be output into each experimental sub-folder.
-#'
 #' # Lastly, you may have R installed elsewhere and so want to have that noted while
 #' # your experiment is built because the shell scripts will need to point to the correct place.
-#' suppressWarnings(file.remove(list.files("~/defaultSHAPE/",full.names=TRUE),
-#' recursive = TRUE, showWarnings = FALSE))
-#' # You will get a series of TRUE/FALSE returned.
 #' \donttest{shapeExperiment(func_filepath_toDesign = "~/SHAPE_templates/SHAPE_experimentalDesign.v.1.r",
-#' func_templateDir = "~/SHAPE_templates/", func_filePath_R = "~/your_R_folder/R_app/bin/R")}
+#'                              func_templateDir = "~/SHAPE_templates/",
+#'                              func_filePath_R = "~/your_R_folder/R_app/bin/R")}
 #' # Now obviously the above location likely is not where you installed R,
 #' # but ideally you get the point. The difference is in how the shell scripts were written.
 #'
@@ -3966,7 +4042,9 @@ shapeExperiment <- function(func_filepath_toDesign, func_templateDir,
                                                  "memory"='--mem=8192',
                                                  "jobName"='-J fakeJob',
                                                  "wallTime"='-t 14-00:00:00',
-                                                 "fileOut"='-o fakeOut')){
+                                                 "fileOut"='-o fakeOut'),
+                            func_processingCores = 1,
+                            func_suppressOld_summaryFiles = FALSE){
   #### DID YOU GRAB THE SHAPE TEMPLATE FILES FROM:
   #### IF NOT, THEN THIS ISN'T GOING TO WORK, IF SO THEN THE FOLDER
   #### TO WHERE YOU SAVED THEM SHOULD BE THE ARGUMENT:  func_templateDir
@@ -4066,7 +4144,8 @@ shapeExperiment <- function(func_filepath_toDesign, func_templateDir,
       fileName_templates[thisFile] <- paste(func_templateDir,tmpFile,sep="")
       if(thisFile == "functions"){ source(fileName_templates[thisFile]) }
     } else {
-      stopError(paste("Could not find a unique file like ",fileName_templates[thisFile]," in ",func_templateDir," please review and ensure the template exists",sep=""))
+      stopError(paste("Could not find a unique file like ",fileName_templates[thisFile],
+                      " in ",func_templateDir," please review and ensure the template exists",sep=""))
     }
   }
   # Step 2: read the input parameters and begin by building the experiment's folders
@@ -4209,6 +4288,40 @@ shapeExperiment <- function(func_filepath_toDesign, func_templateDir,
                       func_passedArgs = func_rArgs)
     }
   }
+
+  # We write this simple R script to run post analysis, which is basically a setup the the minimum necessary
+  # rSHAPE environmental variables for the experiment and the to run the function.
+  func_processingScript <- paste(trimQuotes(inputParms[["shape_workDir"]]),"summariseExperiment_",
+                                 trimQuotes(inputParms[["shape_save_batchBase"]]),".r",sep="")
+  cat(c("library(rSHAPE)",
+        paste("defineSHAPE(shape_save_batchSet = ",if(!is.null(inputParms$uniqueReplicates)){1}else{NULL},",\n ",
+              "shape_save_batchJob = ",if(!is.null(inputParms$shape_save_batchJob)){1}else{NULL},",\n ",
+              'shape_sepString = "',getOption("shape_sepString"),'",\n ',
+              "shape_workDir = ",inputParms[["shape_workDir"]],",\n ",
+              'shape_postDir = "',getOption("shape_postDir"),'",\n ',
+              "shape_save_batchBase = ",inputParms$shape_save_batchBase,",\n ",
+              'shape_string_lineDescent = "',getOption("shape_string_lineDescent"),'")',
+              sep=""),
+        paste("summariseExperiment(func_numCores = ",func_processingCores,", ",
+              "func_suppressOld = ",func_suppressOld_summaryFiles,
+              ")",sep=""),
+        'q(save="no")'),
+      file = func_processingScript,
+      sep = "\n",
+      append = FALSE)
+  # Now we write a shell submission script for the experiment's post analysis
+  func_processing_subScript <- paste(trimQuotes(inputParms[["shape_workDir"]]),"summariseExperiment_",
+                                     trimQuotes(inputParms[["shape_save_batchBase"]]),".sh",sep="")
+  cat(c("#!/bin/bash",
+        paste(func_filePath_R,
+              func_baseCall,
+              func_processingScript,
+              paste(func_processingScript,".Rout",sep=""),
+              sep=" ")),
+      file = func_processing_subScript,
+      sep = "\n",
+      append = FALSE)
+
   # I make all .sh files executable
   Sys.chmod(list.files(path=tmpDir,pattern='.sh',recursive=TRUE,full.names=TRUE),
             mode="0777")
@@ -4557,3 +4670,721 @@ shapeCombinations <- function(func_inLines, func_comboRef, func_indepRef, func_c
 }
 
 
+
+
+
+
+
+#' This function is a wrapper for getting a summary of the results of an rSHAPE run and/or experiment as a whole.  The
+#' former is presumed to be of greater use but either is fine as per your needs.  This wrapper will cause
+#' RData files to be created which contain the summarised experimental details that you can then use more easily
+#' for analysis.
+#'
+#' @param func_processingTypes A vector of character strings which define the type of processing to be performed
+#' when callign this experimental analysis wrapper function.  At present, the types include:
+#' "fileList", "parameters", "popDemographics","repeatability" as per the rSHAPE option - shape_procExp_filenames
+#' @param func_numCores Integer number of computer cores to be requested for performing parallel processing
+#' of experiment files.  It defaults as 1, which effectively means in tandem - ie: not parallel.
+#' @param func_suppressOld This is a logical toggle if files which exist in the expected location should be deleted.
+#' Default is FALSE and the function will simply not process alraedy processed output.  TRUE might be useful as a means
+#' to forcibly re-run the summary fresh.
+#'
+#' @return A message detailing if the requested processed files can be found, either affirmative for all
+#' or a note when at least one is missing.
+#'
+#' @section Note:
+#' There is no example as this cannot work without a complete rSHAPE experiment to be analysed.
+#'
+#' @export
+summariseExperiment <- function(func_processingTypes = c("fileList", "parameters", "popDemographics","repeatability"),
+                                func_numCores = 1, func_suppressOld = FALSE){
+  # For convenience we grab the values of the processing filenames
+  func_processingOptions <- getOption("shape_procExp_filenames")
+  # If the user is having a laugh and passing nothing for the processing we'll drop out
+  func_processingTypes <- func_processingTypes[which(is.element(func_processingTypes,
+                                                                names(func_processingOptions)))]
+  if(length(func_processingTypes) == 0 ){
+    return("No valid func_processingTypes strings passed, not trying to run experiment processing.")
+  }
+  # Now we check if we're supposed to delete any files
+  if(func_suppressOld){
+    # We check which files exist to be removed
+    func_tmpRemove <- func_processingOptions[which(file.exists(func_processingOptions))]
+    if(length(func_tmpRemove) > 0){ file.remove(func_tmpRemove) }
+  }
+
+  # This function is the one which can take advantage of parallelisation.  So here is where we'll
+  # register multiple cores or make a cluster for processing.
+  func_useCluster <- makeCluster(func_numCores, type="SOCK")
+  registerDoSNOW(func_useCluster)
+
+
+  # This is a regular expression like string that can be used to find files.
+  funcSave_jobExpression <- name_batchString(funcBase = getOption("shape_save_batchBase"),
+                                             func_setID = if(!is.null(getOption("shape_save_batchSet"))){
+                                                             paste('[^',getOption("shape_sepString"),']+',sep="")
+                                                           }else{
+                                                             NULL
+                                                           },
+                                             func_jobID = if(!is.null(getOption("shape_save_batchJob"))){
+                                                            paste('[^',getOption("shape_sepString"),']+',sep="")
+                                                          }else{
+                                                            NULL
+                                                          },
+                                             func_sepString = getOption("shape_sepString"))
+
+  # Now we call the different functions for summary post-analysis
+  if(is.element("fileList",names(func_processingOptions)) &&
+     !file.exists(func_processingOptions["fileList"])){
+        # We call the function which has standard shape options as all arguments.
+        summarise_experimentFiles()
+  }
+  if(is.element("parameters",names(func_processingOptions)) &&
+            !file.exists(func_processingOptions["parameters"])){
+        # We call the function which has standard shape options as all arguments.
+        summarise_experimentParameters()
+  }
+  if(is.element("popDemographics",names(func_processingOptions)) &&
+            !file.exists(func_processingOptions["popDemographics"])){
+        # We call the function which takes only a single non-default argument based on reference strings
+        summarise_popDemographics(funcSave_jobExpression = funcSave_jobExpression)
+  }
+  if(is.element("repeatability",names(func_processingOptions)) &&
+            !file.exists(func_processingOptions["repeatability"])){
+        # We call the function which takes only a single non-default argument based on reference strings
+        summarise_evolRepeatability(funcSave_jobExpression = funcSave_jobExpression)
+  }
+
+  # We close the cluster that was built
+  stopCluster(func_useCluster)
+
+  # We check which of the output summaries exist
+  func_existingOutput <- file.exists(func_processingOptions[func_processingTypes])
+  # We return a message based on our search for output files.
+  return( ifelse(all(func_existingOutput),
+                     "Reached end of summariseExperiment, output summaries found.",
+                     "Missing at least one of the requested summary outputs from summariseExperiment.") )
+}
+
+
+
+#' This function will find all initially processed output files from individual replicates and return summary information.
+#' That information is saved to an RData file which will contain 3 objects: all_proccessedFiles, all_jobInfo, all_dividedFiles
+#'
+#' @param func_experimentDir This is the filepath to the root directoy under which all your experimental files can
+#' be found.
+#' @param func_saveFile This is the filepath and filename (ending in .RData please) to which the results of this
+#' step will be saved.
+#' @param func_search_filePattern This is a string which can be used to search and find the files which relate to
+#' the processed output of individual replicates rSHAPE runs.
+#' @param func_sepString This is the character string which was used for commonly collapsing elements in the rSHAPE run.
+#'
+#' @section Note:
+#' There is no example as this cannot work without a complete rSHAPE experiment to be analysed.
+#'
+#' @export
+summarise_experimentFiles <- function(func_experimentDir = getOption("shape_workDir"),
+                                      func_saveFile = getOption("shape_procExp_filenames")["fileList"],
+                                      func_search_filePattern = getOption("shape_processedData_filePattern"),
+                                      func_sepString = getOption("shape_sepString")){
+  # This will go and find every single processed output file that can be used for the experimental summary.
+  all_proccessedFiles <- list.files(path= func_experimentDir,
+                                    pattern= func_search_filePattern,
+                                    recursive = TRUE, full.names=TRUE)
+  # Now I know what the epxression is for jobs, but better yet I know how the jobs were built and so can extract all my info
+  all_jobInfo <- name_batchString(funcBase = paste(getOption("shape_save_batchBase"),
+                                                   unlist(lapply(strsplit(all_proccessedFiles, func_search_filePattern),function(thisFile){
+                                                     gsub('.RData',"",thisFile[2],fixed=TRUE)
+                                                   })),
+                                                   sep=""),
+                                  func_setID = !is.null(getOption("shape_save_batchSet")),
+                                  func_jobID = !is.null(getOption("shape_save_batchJob")),
+                                  func_repID = TRUE,
+                                  funcSplit = TRUE,
+                                  func_sepString = func_sepString)
+  # We now find unique jobs by looking at the information just after the func_search_filePattern
+  # The regular expressions are so that I can have subsetted replicates of jobs yet they be considered part of a single set.
+  all_uniqueJobs <- name_batchString(funcBase = getOption("shape_save_batchBase"),
+                                     func_setID = paste('[^',func_sepString,']+',sep=""),
+                                     func_jobID = unique(all_jobInfo["jobID",]),
+                                     func_sepString = func_sepString)
+  # We now subdivide our all_proccessedFiles into a list of the different unique jobs
+  # If you're not aware sets are used by rSHAPE to create replicates of identical parameter
+  # combinations (which are jobs - and each job can have many replicates).
+  all_dividedFiles <- sapply(all_uniqueJobs,function(x){
+                          return( all_proccessedFiles[which(grepl(paste(x,"(.+)",sep=func_sepString), all_proccessedFiles))] )
+                        },simplify=FALSE)
+  # As a sanity check we ensure that all the all_proccessedFiles have been placed in our dividedfiles object
+  if(length(all_proccessedFiles) != length(unlist(all_dividedFiles))){
+    stopError(" There was a problem when dividing the all_proccessedFiles into divdedFiles, please review")
+  }
+  save(all_proccessedFiles, all_jobInfo, all_dividedFiles,
+       file= func_saveFile)
+  # Nothing is returned, we'll have saved an output
+  invisible( NULL )
+}
+
+
+
+#' This function will use output from summarise_experimentFiles to locate all parameter files and then
+#' report on all those parameters for the jobs that were run.  This will save an RData file which will
+#' contain one object: all_parmInfo
+#'
+#' @param func_workEnvir This is an environment used to load files with the load function.  It's used to encapsulate
+#' the loaded information to a controlled space.
+#' @param func_saveFile This is the filepath and filename (ending in .RData please) to which the results of this
+#' step will be saved.
+#' @param func_experimentDir This is the filepath to the root directoy under which all your experimental files can
+#' be found.
+#' @param func_refFile This is the filepath to the reference file that contains information regarding all the
+#' processed files for the rSHAPE experiment.
+#'
+#' @section Note:
+#' There is no example as this cannot work without a complete rSHAPE experiment to be analysed.
+#'
+#' @export
+summarise_experimentParameters <- function(func_workEnvir = new.env(),
+                                           func_saveFile = getOption("shape_procExp_filenames")["parameters"],
+                                            func_experimentDir = getOption("shape_workDir"),
+                                            func_refFile = getOption("shape_procExp_filenames")["fileList"]){
+  # We start by loading the reference file into this workspace, but if it does not exist we complain
+  if(!file.exists(func_refFile)){
+    stopError("Did not find the reference file needed for summarise_experimentParameters")
+  }
+  load(func_refFile, envir = func_workEnvir)
+
+  # We find all the directories which use the names of our divided files
+  func_tmpDirs <- list.dirs(path=func_experimentDir,full.names=FALSE,recursive=FALSE)
+  func_tmpDirs <- unique(unlist(lapply(names(func_workEnvir$all_dividedFiles), function(thisName){
+                                    return( func_tmpDirs[which(grepl(thisName,func_tmpDirs))] )
+                                  })))
+
+  # I need to create an outer list object which stores the information for each job
+  all_parmInfo <- NULL
+  # Now we break the processing into chunks to be added up and collected
+  # This done so as to reduce the size of the write packets.
+  tmp_chunkSize <- 100
+  tmp_numChunks <- ceiling(length(func_tmpDirs)/tmp_chunkSize)
+  for(thisChunk in 1:tmp_numChunks){
+    tmpAdd <- NULL
+    for(thisJob in func_tmpDirs[(1+((thisChunk - 1)*tmp_chunkSize)):min((thisChunk*tmp_chunkSize),length(func_tmpDirs))]){
+      # We load the parameters for thisJob
+      tmp_parmFile <- list.files(path=paste(func_experimentDir,thisJob,"/",sep=""), pattern = "Parameters")
+      if(length(tmp_parmFile) == 1){
+        load(paste(func_experimentDir,thisJob,"/",tmp_parmFile,sep=""),envir= func_workEnvir)
+      } else {
+        stopError(paste("Could not find the parameters files to load for ",thisJob,sep=""))
+      }
+      # I now build an object which captures the runParms of interest, this should be a list object
+      tmp_parmsRef <- c(func_workEnvir$runParameters$Population,
+                        func_workEnvir$runParameters$Growth_Disturbance[which(!is.element(names(func_workEnvir$runParameters$Growth_Disturbance),
+                                                                                          c("shape_const_growthGenerations",
+                                                                                            "shape_init_distPars",
+                                                                                            "shape_track_distSize")))],
+                        "distFactor"= unname(func_workEnvir$runParameters$Growth_Disturbance$shape_init_distPars["factor"]),
+                        "distSpread"= unname(func_workEnvir$runParameters$Growth_Disturbance$shape_init_distPars["random"]),
+                        "mean_realisedDilution"=mean(func_workEnvir$runParameters$Growth_Disturbance$shape_track_distSize[,"factor"]),
+                        func_workEnvir$runParameters$FitnessLandscape,
+                        func_workEnvir$runParameters$DFE,
+                        "db_splitTables"= func_workEnvir$runParameters$DataManagement$shape_db_splitTables)
+      tmp_parmsRef$shape_const_distParameters <- paste(tmp_parmsRef$shape_const_distParameters,collapse=",")
+
+      # Now I remove the runParameters from the workspace as a sanity check
+      rm(list=c("runParameters"), envir = func_workEnvir)
+      # We now assign this information into our list object, the jobs set looks for which of the names(func_workEnvir$all_dividedFiles)
+      # associates with thisJob for latter grouping of data.  To assign a unique jobSet we look if there is the jobString
+      # otherwise use the directory name.
+      tmpReturn <- data.frame("jobName"=thisJob,
+                              "jobSet"= if(!is.null(getOption("shape_save_batchSet"))){
+                                            # We then check which of the func_workEnvir$all_dividedFiles names could refer to this
+                                            # We then choose the longest one that matches, as that will be the most complete
+                                            tmpNames <- names(func_workEnvir$all_dividedFiles)[sapply(names(func_workEnvir$all_dividedFiles),grepl,"x"=thisJob)]
+                                            tmpNames[which.max(nchar(tmpNames))]
+                                          } else {
+                                            thisJob
+                                          },
+                              t(unlist(tmp_parmsRef)),
+                              stringsAsFactors = FALSE)
+      # We now just reset the data types
+      for(thisCol in names(tmp_parmsRef)){ mode(tmpReturn[,thisCol]) <- mode(tmp_parmsRef[[thisCol]]) }
+      # Build up the chunk of info.
+      tmpAdd <- rbind(tmpAdd, tmpReturn)
+    }
+    # Build on the chunk of info
+    all_parmInfo <- rbind(all_parmInfo, tmpAdd)
+  }
+  # We save the gathered information
+  save(all_parmInfo, file= func_saveFile)
+
+  # We now silently return nothing
+  invisible( NULL )
+}
+
+
+
+
+
+#' This function will use output from summarise_experimentFiles and summarise_experimentParameters
+#' to help with expectations concerning run output and handling.  This will save an RData file which
+#' will contain one object: all_popSets, which is a list of relevant control information about I/O
+#' and then a series of other RData files which contain the demographics information as a matrix with the
+#' mean and standard deviation of demographics for all replicates.
+#'
+#' @param funcSave_jobExpression This is a string expression that can be used to find elements of the experiment
+#' being analysed.  It should be some robust unique string or regular expression.
+#' @param func_saveFile This is the filepath and filename (ending in .RData please) to which the results of this
+#' step will be saved.
+#' @param func_experimentDir This is the filepath to the root directoy under which all your experimental files can
+#' be found.
+#' @param func_saveDir This is the directory to which output will be saved.
+#' @param func_refFile This is the filepath to the reference file that contains information regarding all the
+#' processed files for the rSHAPE experiment.
+#' @param func_workEnvir This is an environment used to load files with the load function.  It's used to encapsulate
+#' the loaded information to a controlled space.
+#' @param func_objPrefix This is a character string for programatic naming of objects of this type.
+#'
+#' @section Note:
+#' There is no example as this cannot work without a complete rSHAPE experiment to be analysed.
+#'
+#' @export
+summarise_popDemographics <- function(funcSave_jobExpression,
+                                      func_saveFile = getOption("shape_procExp_filenames")["popDemographics"],
+                                      func_experimentDir = getOption("shape_workDir"),
+                                      func_saveDir = getOption("shape_postDir"),
+                                      func_refFile = getOption("shape_procExp_filenames")[c("fileList","parameters")],
+                                      func_workEnvir = new.env(),
+                                      func_objPrefix = "popDemo_"){
+  # This step can take time with larger experiments so we print a flag
+  print("Starting popDemographics")
+  # We start by loading the reference file into this workspace, but if it does not exist we complain
+  if(any(!file.exists(func_refFile))){
+    stopError("Did not find the reference file needed for summarise_experimentParameters")
+  }
+  for(thisFile in func_refFile){
+    load(thisFile, envir = func_workEnvir)
+  }
+  # We create an object that tracks the names of save files, objects and jobs for each set
+  all_popSets <- sapply(unique(func_workEnvir$all_parmInfo$jobSet), function(thisSet){
+                      tmp_thisName <- nameObject(func_inString = thisSet,
+                                                 func_inPrefix = func_objPrefix)
+                      return( list("objName"=tmp_thisName,
+                                   "saveFile"= paste(sub(funcSave_jobExpression,"",
+                                                          sub(getOption("shape_save_batchBase"),
+                                                              tmp_thisName,
+                                                              func_saveFile),
+                                                         fixed=TRUE),sep=""),
+                                   "setJobs" = unique(func_workEnvir$all_parmInfo$jobName[which(func_workEnvir$all_parmInfo$jobSet == thisSet)])) )
+
+                    }, simplify = FALSE)
+  # For all_uniqueSets, we find the ones where the files don't exist so those are the only we build
+  tmp_missingSets <- names(all_popSets)[unlist(lapply(all_popSets,function(thisSet){
+                                                  !file.exists(paste(func_saveDir,thisSet[["saveFile"]],sep=""))
+                                                }))]
+  # This assignment is to make check() shut up despite no issue with global binding within the downstream foreach context.
+  thisCheck <- NULL
+
+  # Now for each main job we'll gather some information and save it into it's own list object
+  tmpCheck <- foreach(thisCheck = tmp_missingSets, .combine="c",
+                      .packages = c("rSHAPE", "DBI","RSQLite")) %dopar% {
+
+    tmpList <- vector(mode="list",
+                      length=length(all_popSets[[thisCheck]][["setJobs"]]))
+    names(tmpList) <- all_popSets[[thisCheck]][["setJobs"]]
+    # Ok here is the level at which we'll place our foreach looping to create a list of results
+    for(thisJob in all_popSets[[thisCheck]][["setJobs"]]){
+       # We find the job files associated to thisJob
+       tmpJobs <- func_workEnvir$all_dividedFiles[[thisCheck]][which(grepl(thisJob, func_workEnvir$all_dividedFiles[[thisCheck]]))]
+       if(length(tmpJobs) > 0){
+         # I need to create an outer list object which stores the information for each job
+         tmp_replicateInfo <- NULL
+         # Now we break the processing into chunks to be added up and collected
+         tmp_chunkSize <- 100
+         tmp_numChunks <- ceiling(length(tmpJobs)/tmp_chunkSize)
+         for(thisChunk in 1:tmp_numChunks){
+           tmpAdd <- NULL
+           # Now for each and every replicate within this job we want to grab the:
+           # (1) the population wide - through time - min, mean,max fitness. - I'll return the whole demoMat
+           for(thisFile in tmpJobs[(1+((thisChunk - 1)*tmp_chunkSize)):min((thisChunk*tmp_chunkSize),length(tmpJobs))]){
+             load(thisFile, envir = func_workEnvir)
+             # Ok we'll now return this information along with the demoMat
+             tmpAdd <- c(tmpAdd, list("popDemographics"= func_workEnvir$runDemographics$demoMat))
+             rm(list=c("info_estLines","runDemographics" ), envir = func_workEnvir)
+             # Clear up memory
+             gc()
+           } # This closes out the for loop gathering information about the replicates for this job
+           tmp_replicateInfo <- c(tmp_replicateInfo, tmpAdd)
+           rm(tmpAdd)
+           gc()
+         }
+
+         #tmp_all_popDemos <- array(sapply(tmp_replicateInfo,function(x){ x[["popDemographics"]] }),
+         tmp_all_popDemos <- array(sapply(tmp_replicateInfo,function(x){ x }),
+                                   dim=c(dim(tmp_replicateInfo[[1]]),length(tmp_replicateInfo)),
+                                   dimnames = list(rownames(tmp_replicateInfo[[1]]),
+                                                   colnames(tmp_replicateInfo[[1]]),
+                                                   NULL))
+         # For the population demograpihcs we collapse this into the mean values through time across all replicates
+         tmp_all_popDemos <- matrix(apply(tmp_all_popDemos,MARGIN=2,function(thisCol){
+                                         # Now we return the mean and sd values for each column
+                                         c(apply(thisCol,MARGIN=1,mean),apply(thisCol,MARGIN=1,sd))
+
+                                       }),nrow=nrow(tmp_all_popDemos),ncol=ncol(tmp_all_popDemos)*2,
+                                       dimnames=list(rownames(tmp_all_popDemos),
+                                                     unlist(lapply(colnames(tmp_all_popDemos),function(x){ return(c(x,paste("sd",x,sep="_")))}))) )
+         # We now assign this information into our list object
+         tmpList[[thisJob]] <- tmp_all_popDemos
+         rm(tmp_all_popDemos, tmp_replicateInfo)
+         gc()
+       } # This closes out the logical conditional that there is at least some replicates in thisDir
+       # This closes out the loop for the different jobs
+    }
+    # We can now save this object to a file
+    assign(all_popSets[[thisCheck]][["objName"]], tmpList, pos= func_workEnvir)
+    save(list = all_popSets[[thisCheck]][["objName"]],
+         file= all_popSets[[thisCheck]][["saveFile"]],
+         envir = func_workEnvir)
+    rm(list= all_popSets[[thisCheck]][["objName"]], envir = func_workEnvir)
+    rm(tmpList)
+    # Clear up memory
+    gc()
+    # We return a confirmation that the job completed
+    return(  nameObject(func_inString = all_popSets[[thisCheck]][["objName"]],
+                        func_inPrefix = func_objPrefix,
+                        func_splitStr = TRUE)  )
+  }
+  # We now check if all the jobs completed
+  tmp_checkCompleted <- sapply(tmp_missingSets,is.element,"set"=tmpCheck)
+  if(all(tmp_checkCompleted)){
+    # We now save the object which stores all the population demographics data object names and files locations
+    save(all_popSets, file= func_saveFile)
+  } else {
+    stop(paste("There was a problem with the sets of: ",paste(names(tmp_checkCompleted)[which(!tmp_checkCompleted)],collapse=" ",sep=" "),sep=""))
+  }
+
+  # We silently return nothinig
+  invisible( NULL )
+}
+
+
+
+#' This function will use output from summarise_experimentFiles and summarise_experimentParameters
+#' to help with expectations concerning run output and handling.  This will save an RData file which
+#' will contain one object: all_popSets, which is a list of relevant control information about I/O
+#' and then a series of other RData files which contain the demographics information as a matrix with the
+#' mean and standard deviation of demographics for all replicates.
+#'
+#' @param funcSave_jobExpression This is a string expression that can be used to find elements of the experiment
+#' being analysed.  It should be some robust unique string or regular expression.
+#' @param func_saveFile This is the filepath and filename (ending in .RData please) to which the results of this
+#' step will be saved.
+#' @param func_experimentDir This is the filepath to the root directoy under which all your experimental files can
+#' be found.
+#' @param func_saveDir This is the directory to which output will be saved.
+#' @param func_refFile This is the filepath to the reference file that contains information regarding all the
+#' processed files for the rSHAPE experiment.
+#' @param func_workEnvir This is an environment used to load files with the load function.  It's used to encapsulate
+#' the loaded information to a controlled space.
+#' @param func_objPrefix This is a character string for programatic naming of objects of this type.
+#' @param func_sepString This is rSHAPE's sepString option but here to be passed into foreach
+#' @param func_string_line_ofDescent This is rSHAPE's option of similar name to be passed into foreach
+#' @param func_processedPattern This is rSHAPE's option of the similar name to be passed into foreach
+#' @param func_sepLines This is rSHAPE's option of the similar name passed into foreach
+#'
+#' @section Note:
+#' There is no example as this cannot work without a complete rSHAPE experiment to be analysed.
+#'
+#' @export
+summarise_evolRepeatability <- function(funcSave_jobExpression,
+                                        func_saveFile = getOption("shape_procExp_filenames")["repeatability"],
+                                        func_experimentDir = getOption("shape_workDir"),
+                                        func_saveDir = getOption("shape_postDir"),
+                                        func_refFile = getOption("shape_procExp_filenames")[c("fileList","parameters")],
+                                        func_workEnvir = new.env(),
+                                        func_objPrefix = "Repeat_",
+                                        func_sepString = getOption("shape_sepString"),
+                                        func_string_line_ofDescent = getOption("shape_string_lineDescent"),
+                                        func_processedPattern = getOption("shape_processedData_filePattern"),
+                                        func_sepLines = getOption("shape_sepLines")){
+  # This step can take time with larger experiments so we print a flag
+  print("Starting repeatability")
+  # We start by loading the reference file into this workspace, but if it does not exist we complain
+  if(any(!file.exists(func_refFile))){
+    stopError("Did not find the reference file needed for summarise_experimentParameters")
+  }
+  for(thisFile in func_refFile){
+    load(thisFile, envir = func_workEnvir)
+  }
+
+  # We create an object that tracks the names of save files, objects and jobs for each set
+  all_repSets <- sapply(unique(func_workEnvir$all_parmInfo$jobSet), function(thisSet){
+                      tmp_thisName <- nameObject(func_inString = thisSet,
+                                                 func_inPrefix = func_objPrefix)
+                      return( list("objName"=tmp_thisName,
+                                   "saveFile"= paste(sub(funcSave_jobExpression,"",
+                                                         sub(getOption("shape_save_batchBase"),
+                                                             tmp_thisName,
+                                                             func_saveFile),
+                                                         fixed=TRUE),sep=""),
+                                   "setJobs" = unique(func_workEnvir$all_parmInfo$jobName[which(func_workEnvir$all_parmInfo$jobSet == thisSet)])) )
+
+                    }, simplify = FALSE)
+
+  # For all_uniqueSets, we find the ones where the files don't exist so those are the only we build
+  tmp_missingSets <- names(all_repSets)[unlist(lapply(all_repSets,function(thisSet){
+                                                    !file.exists(paste(getOption("shape_postDir"),thisSet[["saveFile"]],sep=""))
+                                                  }))]
+  # Now for each main job we'll gather some information and save it into it's own list object
+  tmpCheck <- foreach(thisSet = tmp_missingSets, .combine="c",
+                      .packages = c("rSHAPE", "DBI","RSQLite")) %dopar% {
+    # We define an environment character string for the purposes of this foreach
+    tmp_foreachString <- "_foreach_"
+
+    tmpList <- vector(mode="list",length=length(all_repSets[[thisSet]][["setJobs"]]))
+    names(tmpList) <- all_repSets[[thisSet]][["setJobs"]]
+    # Ok here is the level at which we'll place our foreach looping to create a list of results
+    for(thisJob in all_repSets[[thisSet]][["setJobs"]]){
+      # We also create a parameter space for this job
+      load(paste(func_experimentDir, thisJob,"/",thisJob,"_Parameters_1.RData",sep=""),
+           envir = func_workEnvir)
+
+      # This builds a connection required for fixing the absRank measurements
+      connections_dataBase <- list("genotypeSpace" = reset_shapeDB(paste(func_experimentDir,thisJob,"/",
+                                                                              func_workEnvir$runParameters$DataManagement$shape_fileName_dataBase[["genotypeSpace"]],
+                                                                              sep=""),
+                                                                    func_type = "connect"))
+
+      func_landscapeCon <- connections_dataBase$genotypeSpace
+      func_landTables <- RSQLite::dbListTables(func_landscapeCon)
+      allow_backMutations <- func_workEnvir$runParameters$FitnessLandscape$shape_allow_backMutations
+      genomeLength <- func_workEnvir$runParameters$Population$shape_genomeLength
+      db_splitTables <- func_workEnvir$runParameters$DataManagement$shape_db_splitTables
+
+      # We find the job files associated to thisJob
+      tmpJobs <- func_workEnvir$all_dividedFiles[[thisSet]][which(grepl(thisJob, func_workEnvir$all_dividedFiles[[thisSet]]))]
+      # I now build a list for storing the information of our replicate
+      tmp_replicateInfo <- NULL
+      if(length(tmpJobs) > 0){
+        # Now for each and every replicate within this job we want to grab the information concerning transitions and
+        # the fitness landscape of the parent to child.  We don't define .combine to gets list return
+        # I need to create an outer list object which stores the information for each job
+        tmp_replicateInfo <- NULL
+        # Now we break the processing into chunks to be added up and collected
+        tmp_chunkSize <- 100
+        tmp_numChunks <- ceiling(length(tmpJobs)/tmp_chunkSize)
+        for(thisChunk in 1:tmp_numChunks){
+          tmpAdd <- NULL
+          # Now for each and every replicate within this job we want to grab the:
+          # (1) the population wide - through time - min, mean,max fitness. - I'll return the whole demoMat
+          for(thisFile in tmpJobs[(1+((thisChunk - 1)*tmp_chunkSize)):min((thisChunk*tmp_chunkSize),length(tmpJobs))]){
+            tmp_fileString <- nameEnviron(strsplit(strsplit(thisFile,"/")[[1]][length(strsplit(thisFile,"/")[[1]])],".",fixed=TRUE)[[1]][1],
+                                          funcBase = tmp_foreachString)
+            assign(tmp_fileString, new.env(), envir = func_workEnvir)
+            load(thisFile, envir = func_workEnvir[[tmp_fileString]])
+            # We extract what were the established lineages
+            tmpEstablished <- func_workEnvir[[tmp_fileString]]$runDemographics$vec_estLineages
+            # the final lineages which existed can be found by checking the last row of info_estLines[["lineDemo"]][,,as.character(tmpEstablished)]
+            lineDemo_maxStep <- which.max(as.numeric(nameTable_step(rownames(func_workEnvir[[tmp_fileString]]$info_estLines$lineDemo),
+                                                                    funcSplit = TRUE,
+                                                                    func_sepString = func_sepString)))
+            # We extract what were the established lineages
+            tmp_final_estLineage <- data.frame("genotypeID"=tmpEstablished[which(func_workEnvir[[tmp_fileString]]$info_estLines$lineDemo[lineDemo_maxStep,"isEstablished",as.character(tmpEstablished)] == 1)])
+            tmp_final_estLineage$binaryString <- rep("",nrow(tmp_final_estLineage))
+            tmp_final_estLineage[,"binaryString"] <- unlist(lapply(tmp_final_estLineage[,"genotypeID"],function(x){
+                                                                retrieve_binaryString(func_genotypeID = x,
+                                                                                      func_landscapeCon = func_landscapeCon,
+                                                                                      func_subNaming = db_splitTables)[,"binaryString"]
+                                                              }))
+
+            # The final dominant lineage is the transitioned lineage which had the largest population on the last step.  In the event of a tie
+            # we look for the lineage which transitioned latest and break subsequent ties by highest fitness.  All to ensure a single return.
+            tmp_transitionMat <- func_workEnvir[[tmp_fileString]]$runDemographics$transitionMat
+            tmp_final_domLineage <- cbind("popSize"= func_workEnvir[[tmp_fileString]]$info_estLines$lineDemo[lineDemo_maxStep,"popSize",as.character(tmp_transitionMat[,"genotypeID"])],
+                                          matrix(tmp_transitionMat[,c("Step","fitness","genotypeID")],
+                                                 nrow=nrow(tmp_transitionMat), dimnames = list(NULL,c("Step","fitness","genotypeID"))))
+            tmp_maxSized = which(tmp_final_domLineage[,"popSize"] == max(tmp_final_domLineage[,"popSize"]))
+
+            # As a final safety, but unlikely requirement, if multiple genotypeID's transitioned at the same time, have the same popSize,
+            # and have the same fitness, we simply take the first value.  This should never matter.
+            tmp_final_domLineage <- if(length(tmp_maxSized) != 1){
+                                      tmpReturn <- which(tmp_final_domLineage[tmp_maxSized,"Step"]==max(tmp_final_domLineage[tmp_maxSized,"Step"]))
+                                      if(length(tmpReturn) > 1){
+                                        tmpReturn <- tmpReturn[which(tmp_final_domLineage[tmp_maxSized[tmpReturn],"fitness"]==max(tmp_final_domLineage[tmp_maxSized[tmpReturn],"fitness"]))][1]
+                                      }
+                                      tmp_final_domLineage[tmp_maxSized[tmpReturn],"genotypeID"]
+                                    } else {
+                                      tmp_final_domLineage[tmp_maxSized,"genotypeID"]
+                                    }
+
+            # We now build this information into an object shaped as intended for use.
+            tmp_final_domLineage <- c("genotypeID"=unname(tmp_final_domLineage),
+                                      "binaryString"="")
+            tmp_final_domLineage["binaryString"] <- tmp_final_estLineage[which(tmp_final_estLineage[,"genotypeID"] == tmp_final_domLineage["genotypeID"]),"binaryString"]
+
+            # We now also want to track the line of descent for the dominant lineage and it's first transition
+            tmp_line_of_descent <- as.character(func_workEnvir[[tmp_fileString]]$info_estLines$end_Lines_of_Descent[[tmp_final_domLineage["genotypeID"]]])
+            # We now try and extract the first transition in this line of descent
+            tmp_dom_transitions <- strsplit(tmp_line_of_descent,func_string_line_ofDescent)[[1]]
+            # Now if there was no transition we should be left with the WT genotype ID of "0" as the onyl element... otherwise we have a first step.
+            tmp_firstTransition <- if(length(tmp_dom_transitions) == 1){
+              paste(rep(tmp_dom_transitions[1],2),collapse=func_string_line_ofDescent)
+            } else {
+              paste(tmp_dom_transitions[1:2],collapse=func_string_line_ofDescent)
+            }
+            # We now add more information to the domLineage vector
+            tmp_final_domLineage <- c(tmp_final_domLineage,
+                                      "line_ofDescent"= paste(tmp_line_of_descent,collapse= func_sepLines),
+                                      "firstStep"=tmp_firstTransition)
+
+            # We build now the transition mat into something which shows the steps taken on the fitness landscape
+            # In order to know the transitions, we look at the transition matrix and for a lineage, but starting with the first
+            # that is found in the tranisition matrix which was not established on Step_0
+            tmp_initialEst <- dimnames(func_workEnvir[[tmp_fileString]]$info_estLines$lineDemo)[[3]]
+            tmp_initialEst <- unique(c(tmp_initialEst[which.max(func_workEnvir[[tmp_fileString]]$info_estLines$lineDemo[nameTable_step(0),"popSize", tmp_initialEst])],
+                                       tmp_initialEst[which(func_workEnvir[[tmp_fileString]]$info_estLines$lineDemo[nameTable_step(0),"isEstablished", tmp_initialEst] == 1)]))
+            # If there are any genotypes which were not in the initial set we go further, otherwise we're returning some null stuff
+            tmp_returnMat <- NULL
+            if(any(!is.element(tmp_transitionMat[,"genotypeID"],as.numeric(tmp_initialEst))) && length(tmp_initialEst) > 0){
+              # Ok this means that some transition occured.  I now just want to find what transitions occured
+              tmp_landscapeTopology <- func_workEnvir[[tmp_fileString]]$info_estLines$landscapeTopology
+              tmpSteps <- strsplit(rownames(tmp_landscapeTopology),func_string_line_ofDescent)
+              # This is hte first row of our transitionMat at which there was a change
+              tmp_minRow <- min(which(!is.element(tmp_transitionMat[,"genotypeID"],as.numeric(tmp_initialEst))))
+              # Ok this is what will be assigned as the return matrix, it should inform on the
+              # genotypeID_1, fitness_1, absRank, numMuts_1, transition, transitionStep
+              for(thisRow in tmp_minRow:nrow(tmp_transitionMat)){
+                tmpID <- tmp_transitionMat[thisRow, ]
+                # We look to the landscapeTopology object to get transition information, what we are looking for
+                # is an instance where the second element (offspring) is the same as our tmpID, and the progenitor
+                # is some element of the pedigree for our lineage.
+                tmp_possProgenitors <- which(sapply(tmpSteps,function(x){
+                                                  as.numeric(x[2]) == tmpID["genotypeID"]
+                                                }))
+                # If this transition is simply due to a shift in dominance, rather than a new type whic has emerged,
+                # due to mutation, then there may be no progenitors.  In this case we skip it as it is not a mutational step.
+                if (length(tmp_possProgenitors) == 0){ next }
+                tmp_possProgenitors <- matrix(tmp_landscapeTopology[tmp_possProgenitors,],
+                                              nrow = length(tmp_possProgenitors),
+                                              dimnames=list(rownames(tmp_landscapeTopology)[tmp_possProgenitors],
+                                                            colnames(tmp_landscapeTopology)))
+                tmp_possProgenitors <- cbind(tmp_possProgenitors,
+                                             t(sapply(strsplit(rownames(tmp_possProgenitors), func_string_line_ofDescent), function(x){
+                                                    x <- as.numeric(x)
+                                                    return( c("progenitorID"=x[1],
+                                                              "offspringID"=x[2]) )
+                                                  })))
+                # We return now the information
+                tmp_returnMat <- rbind(tmp_returnMat,
+                                       data.frame("progenitor_genotypeID"= tmp_possProgenitors[,"progenitorID"],
+                                                  "offspring_genotypeID"= tmp_possProgenitors[,"offspringID"],
+                                                  "progenitor_fitness"= tmp_possProgenitors[,"progenitor_fitness"],
+                                                  "offspring_fitness"= tmp_possProgenitors[,"offspring_fitness"],
+                                                  "absRank" = tmp_possProgenitors[,"absRank"],
+                                                  "hoodSize" = tmp_possProgenitors[,"hoodSize"],
+                                                  "hoodMin"= tmp_possProgenitors[,"hoodMin"],
+                                                  "hoodMax"= tmp_possProgenitors[,"hoodMax"],
+                                                  "num_altPaths"=  tmp_possProgenitors[,"num_altPaths"],
+                                                  "relFit_altPaths" = tmp_possProgenitors[,"relFit_altPaths"],
+                                                  "prop_maxFit" = tmp_possProgenitors[,"prop_maxFit"],
+                                                  "progenitor_numMuts"= tmp_possProgenitors[,"progenitor_numMuts"],
+                                                  "offspring_numMuts"= tmp_possProgenitors[,"offspring_numMuts"],
+                                                  "transition"=rownames(tmp_possProgenitors),
+                                                  "transitionStep"= tmpID["Step"],
+                                                  row.names = rownames(tmp_possProgenitors),
+                                                  stringsAsFactors = FALSE) )
+              }
+              # Now it's possible the same genotype transition occured multiple times which woould result in
+              # replicated rows OTHER than the transitionStep value, we search for this
+              tmp_checkCols <- which(colnames(tmp_returnMat) != "transitionStep")
+              tmpDuplicated <- duplicated(tmp_returnMat[,tmp_checkCols])
+              if(any(tmpDuplicated)){
+                # We find the paired rows for each duplicated, I setup a working reference matrix due
+                # to observed issues comparing rows with my apply method.
+                tmp_workMat <- matrix(gsub("[[:space:]]","",as.character(unname(unlist(tmp_returnMat[,tmp_checkCols])))),
+                                      ncol = ncol(tmp_returnMat[,tmp_checkCols]))
+                tmpDuplicated <- lapply(which(tmpDuplicated),function(tmpRow){
+                  which(apply(tmp_workMat,MARGIN=1,function(x){
+                    all(x == tmp_workMat[tmpRow,tmp_checkCols])
+                  }))
+                })
+                # So for each unique set in the list we trim our return matrix
+                tmp_removeRows <- NULL
+                for(thisSet in unique(tmpDuplicated)){
+                  tmp_returnMat[thisSet[1],"transitionStep"] <- paste(tmp_returnMat[thisSet,"transitionStep"],collapse= func_sepString)
+                  tmp_removeRows <- c(tmp_removeRows,thisSet[-1])
+                }
+                if(!is.null(tmp_removeRows)){ tmp_returnMat <- tmp_returnMat[-tmp_removeRows,] }
+              }
+            } else {
+              # this is the rather null case of no steps being taken
+              tmp_returnMat <- data.frame("progenitor_genotypeID"= tmp_transitionMat[1,"genotypeID"],
+                                          "offspring_genotypeID"= NA,
+                                          "progenitor_fitness"=tmp_transitionMat[1,"fitness"],
+                                          "offspring_fitness"= NA,
+                                          "absRank" = NA,
+                                          "hoodSize" = NA,
+                                          "hoodMin"= NA,
+                                          "hoodMax"= NA,
+                                          "num_altPaths"=  NA,
+                                          "relFit_altPaths" = NA,
+                                          "prop_maxFit" = NA,
+                                          "progenitor_numMuts"= tmp_transitionMat[1,"numMuts"],
+                                          "offspring_numMuts"= NA,
+                                          "transition"=paste(tmp_transitionMat[1,"genotypeID"]),
+                                          "transitionStep"=0,
+                                          stringsAsFactors = FALSE)
+            }  # This closes out building the tmp_returnMat object
+
+            # Ok we'll now return this information
+            tmpReturn <- list(list("final_estLineages"= tmp_final_estLineage,
+                                   "final_domLineage"= tmp_final_domLineage,
+                                   "transitions"= tmp_returnMat))
+            names(tmpReturn)[length(tmpReturn)] <- nameEnviron(func_Index = tmp_fileString,
+                                                               funcSplit = TRUE,
+                                                               funcBase = tmp_foreachString)
+
+            tmpAdd <- c(tmpAdd, tmpReturn)
+            # Now we remove the environment of the file and it's data
+            rm(list=c(tmp_fileString),pos= func_workEnvir)
+          }
+          tmp_replicateInfo <- c(tmp_replicateInfo, tmpAdd)
+          rm(tmpAdd)
+          gc()
+        } # This closes out the for loop gathering information about the replicates for this job
+      } # This closes out the conditional if that there is at least one file for this job
+      tmpList[[thisJob]] <- tmp_replicateInfo
+      # We remove the objects we created in this section
+      for(thisConnection in connections_dataBase){ RSQLite::dbDisconnect(thisConnection) }
+      # Clean up space
+      rm(tmp_replicateInfo, connections_dataBase,func_landscapeCon,
+         allow_backMutations, genomeLength,db_splitTables,func_landTables)
+    } # This closes out the for loop for different jobs
+
+    # We can now save this object to a file
+    assign(all_repSets[[thisSet]][["objName"]], tmpList, pos= func_workEnvir)
+    save(list = all_repSets[[thisSet]][["objName"]],
+         file= all_repSets[[thisSet]][["saveFile"]],
+         envir = func_workEnvir)
+    rm(list= all_repSets[[thisSet]][["objName"]], envir = func_workEnvir)
+    rm(tmpList, envir = func_workEnvir)
+    # Clean up space
+    gc()
+    # We return a confirmation that the job completed
+    return(  nameObject(func_inString = all_repSets[[thisSet]][["objName"]],
+                        func_inPrefix = func_processedPattern,
+                        func_splitStr = TRUE)  )
+  } # This closes out the foreach loop
+
+  # We now check if all the jobs completed
+  tmp_checkCompleted <- sapply(tmp_missingSets,is.element,"set"=tmpCheck)
+  if(all(tmp_checkCompleted)){
+    # We now save the object which stores all the repeatability data object names and files locations
+    save(all_repSets,file= func_saveFile)
+  } else {
+    stop(paste("There was a problem with the sets of: ",
+               paste(names(tmp_checkCompleted)[which(!tmp_checkCompleted)],collapse=" ",sep=" "),
+               sep=""))
+  }
+
+  # We silently return nothinig
+  invisible( NULL )
+}

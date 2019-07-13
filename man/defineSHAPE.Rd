@@ -21,21 +21,23 @@ defineSHAPE(shape_allow_backMutations = TRUE,
   shape_const_growthForm = "logistic", shape_const_growthRate = 2,
   shape_const_growthGenerations = NULL, shape_db_splitTables = TRUE,
   shape_death_byDensity = TRUE, shape_death_densityCorrelation = 4,
-  shape_death_densityCap = NULL, shape_externalSelfing = FALSE,
+  shape_death_densityCap = NULL, shape_envString = "shapeEnvir",
+  shape_externalSelfing = FALSE,
   shape_external_stopFile = "someNamed.file", shape_finalDir = NULL,
   shape_genomeLength = 100, shape_includeDrift = TRUE,
   shape_init_distPars = c(factor = 100, random = 1),
   shape_maxReplicates = 30, shape_maxRows = 2.5e+07,
   shape_muts_onlyBirths = FALSE, shape_nextID = 0,
-  shape_numGenerations = 100, shape_postDir = NULL,
+  shape_numGenerations = 100, shape_objectStrings = c(popDemographics =
+  "popDemo", repeatability = "evoRepeat"), shape_postDir = NULL,
   shape_recycle_repStart = 1, shape_results_removeSteps = TRUE,
   shape_run_isRecycling = c(Landscape = TRUE, Steps = FALSE, Parameters =
   TRUE, Neighbourhood = FALSE), shape_save_batchBase = "yourJob",
   shape_save_batchSet = 1, shape_save_batchJob = 1,
   shape_scaleGrowth_byDeaths = TRUE, shape_sepString = "_",
-  shape_serverFarm = FALSE, shape_simModel = "HoC",
-  shape_size_timeStep = 1, shape_stringsAsFactors = FALSE,
-  shape_string_lineDescent = "_->_",
+  shape_sepLines = "__and__", shape_serverFarm = FALSE,
+  shape_simModel = "HoC", shape_size_timeStep = 1,
+  shape_stringsAsFactors = FALSE, shape_string_lineDescent = "_->_",
   shape_string_tableNames = "numMutations", shape_thisRep = 1,
   shape_tmpGenoTable = NULL,
   shape_tmp_selfScript = "~/random_nullFile.txt", shape_use_sigFig = 4,
@@ -105,6 +107,8 @@ minimal to maximal effect.  Where 1 is linear, > 1 creates an exponential form o
 
 \item{shape_death_densityCap}{If deaths are density dependent this is the maximal community size for when deaths are 100\% expected.}
 
+\item{shape_envString}{This is a string used for programatically creating workspace environments for rSHAPE}
+
 \item{shape_externalSelfing}{This is the logical toggle controlling if replicates are to be handled as individual external calls
 rather than through the normal internal for loop.  It has limited value and was desgined for when you work on compute nodes with
 limited wall time.}
@@ -133,6 +137,8 @@ matters is tables are aplit/}
 
 \item{shape_numGenerations}{This is the number of generations to be simulated in the run.}
 
+\item{shape_objectStrings}{This is a named character vector which are the string prefixes used when programatically naming objects.}
+
 \item{shape_postDir}{This is the filepath to the directory where post-analysis results will be stored.}
 
 \item{shape_recycle_repStart}{This is the first replicate being simulated once a SHAPE call is made.}
@@ -152,6 +158,9 @@ form follows standard expectations.}
 
 \item{shape_sepString}{This is a string character that is used for collpasing vectors of information into a single
 character string, and subsequently splitting that information back out.}
+
+\item{shape_sepLines}{This is a string character that is used in collapsing multiple elements into a single character string
+though namely employed in the summariseExperiment function.}
 
 \item{shape_serverFarm}{This is a logical flag of whether or not your simulations are going to be run on a remote server
 or other situation with compute and host nodes where you might want to handle particularities I experienced and thus accounted for.}
@@ -215,7 +224,10 @@ args(defineSHAPE)
 sapply(c("shape_workDir","shape_save_batchJob","shape_save_batchBase", "shape_simModel"),getOption)
 # As an exmaple we change your working directory, the ID of the job and the fitness landscape model
 options(list("shape_workDir" = "~/alternativeFolder/","shape_save_batchJob" = 3,
-"shape_save_batchBase" = "non_default_Experiment", "shape_simModel" = "NK"))
+               "shape_save_batchBase" = "non_default_Experiment", "shape_simModel" = "NK"))
 sapply(c("shape_workDir","shape_save_batchJob","shape_save_batchBase", "shape_simModel"),getOption)
+# NOTE: that manually setting the options will not create a new working directory for rSHAPE,
+# you would need to do this yourself or could simply pass these arguments through a call
+# to defineSHAPE().
 
 }

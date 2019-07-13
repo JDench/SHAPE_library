@@ -29,11 +29,13 @@ This function ensures that a vector of values will sum to a given number.  It's 
 # to become integers.
 adjustBirths(func_adjVector = c(9,70,20), func_sumTotal = 100, func_roundValues = FALSE)
 # When rounding, this is stochastic
-replicate(10,adjustBirths(func_adjVector = c(9,70,20), func_sumTotal = 100,
-func_roundValues = TRUE))
+replicate(10,adjustBirths(func_adjVector = c(9,70,20),
+                          func_sumTotal = 100,
+                          func_roundValues = TRUE))
 # Same idea, different input vectors
 adjustBirths(func_adjVector = c(10,75,20), func_sumTotal = 100, func_roundValues = FALSE)
-replicate(10,adjustBirths(func_adjVector = c(10,75,20), func_sumTotal = 100,
-func_roundValues = TRUE))
+replicate(10,adjustBirths(func_adjVector = c(10,75,20),
+                             func_sumTotal = 100,
+                             func_roundValues = TRUE))
 
 }
