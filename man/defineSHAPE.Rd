@@ -223,8 +223,9 @@ args(defineSHAPE)
 # Here are some default values that were just loaded as options
 sapply(c("shape_workDir","shape_save_batchJob","shape_save_batchBase", "shape_simModel"),getOption)
 # As an exmaple we change your working directory, the ID of the job and the fitness landscape model
-options(list("shape_workDir" = "~/alternativeFolder/","shape_save_batchJob" = 3,
-               "shape_save_batchBase" = "non_default_Experiment", "shape_simModel" = "NK"))
+options(list("shape_workDir" = paste(tempdir(),"~/alternativeFolder/",sep=""),
+                "shape_save_batchJob" = 3, "shape_save_batchBase" = "non_default_Experiment",
+                "shape_simModel" = "NK"))
 sapply(c("shape_workDir","shape_save_batchJob","shape_save_batchBase", "shape_simModel"),getOption)
 # NOTE: that manually setting the options will not create a new working directory for rSHAPE,
 # you would need to do this yourself or could simply pass these arguments through a call

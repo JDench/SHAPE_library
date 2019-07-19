@@ -25,8 +25,8 @@
 #' @import RSQLite
 #' @import DBI
 #' @importFrom foreach foreach %dopar%
-#' @importFrom snow makeCluster stopCluster
-#' @importFrom doSNOW registerDoSNOW
+#' @importFrom parallel makeCluster stopCluster
+#' @importFrom doParallel registerDoParallel
 #'
 NULL
 
@@ -38,7 +38,8 @@ library(sn) # This allows the skewwed normal distribution
 library(VGAM) # This includes the Fretchet distribution to be called
 library(evd) # This allows the extreme value distributions to be used.
 library(foreach) # This is for parallel processing
-library(doSNOW) # This is for parallel backend robust to OS.
+library(parallel) # This is for parallel backend robust to OS.
+library(doParallel)
 
 
 ###################################################################################################
@@ -157,8 +158,9 @@ library(doSNOW) # This is for parallel backend robust to OS.
 #' # Here are some default values that were just loaded as options
 #' sapply(c("shape_workDir","shape_save_batchJob","shape_save_batchBase", "shape_simModel"),getOption)
 #' # As an exmaple we change your working directory, the ID of the job and the fitness landscape model
-#' options(list("shape_workDir" = "~/alternativeFolder/","shape_save_batchJob" = 3,
-#'                "shape_save_batchBase" = "non_default_Experiment", "shape_simModel" = "NK"))
+#' options(list("shape_workDir" = paste(tempdir(),"~/alternativeFolder/",sep=""),
+#'                 "shape_save_batchJob" = 3, "shape_save_batchBase" = "non_default_Experiment",
+#'                 "shape_simModel" = "NK"))
 #' sapply(c("shape_workDir","shape_save_batchJob","shape_save_batchBase", "shape_simModel"),getOption)
 #' # NOTE: that manually setting the options will not create a new working directory for rSHAPE,
 #' # you would need to do this yourself or could simply pass these arguments through a call
@@ -4072,6 +4074,7 @@ shapeExperiment <- function(func_filepath_toDesign, func_templateDir,
                          "shape_externalSelfing",
                          "shape_toggle_forceCompletion",
                          "shape_workDir",
+                         "shape_postDir",
                          "shape_save_batchBase",
                          "shape_save_batchJob",
                          "shape_maxReplicates",
@@ -4297,8 +4300,11 @@ shapeExperiment <- function(func_filepath_toDesign, func_templateDir,
         paste("defineSHAPE(shape_save_batchSet = ",if(!is.null(inputParms$uniqueReplicates)){1}else{NULL},",\n ",
               "shape_save_batchJob = ",if(!is.null(inputParms$shape_save_batchJob)){1}else{NULL},",\n ",
               'shape_sepString = "',getOption("shape_sepString"),'",\n ',
+              'shape_sepLines = "',getOption("shape_sepLines"),'",\n ',
               "shape_workDir = ",inputParms[["shape_workDir"]],",\n ",
-              'shape_postDir = "',getOption("shape_postDir"),'",\n ',
+              'shape_postDir = "',paste(trimQuotes(inputParms[["shape_workDir"]]),
+                                        trimQuotes(inputParms[["shape_postDir"]]),
+                                        sep=""),'",\n ',
               "shape_save_batchBase = ",inputParms$shape_save_batchBase,",\n ",
               'shape_string_lineDescent = "',getOption("shape_string_lineDescent"),'")',
               sep=""),
@@ -4715,8 +4721,8 @@ summariseExperiment <- function(func_processingTypes = c("fileList", "parameters
 
   # This function is the one which can take advantage of parallelisation.  So here is where we'll
   # register multiple cores or make a cluster for processing.
-  func_useCluster <- makeCluster(func_numCores, type="SOCK")
-  registerDoSNOW(func_useCluster)
+  func_useCluster <- parallel::makeCluster(func_numCores, type="PSOCK")
+  doParallel::registerDoParallel(func_useCluster)
 
 
   # This is a regular expression like string that can be used to find files.
@@ -5226,10 +5232,10 @@ summarise_evolRepeatability <- function(funcSave_jobExpression,
             tmp_dom_transitions <- strsplit(tmp_line_of_descent,func_string_line_ofDescent)[[1]]
             # Now if there was no transition we should be left with the WT genotype ID of "0" as the onyl element... otherwise we have a first step.
             tmp_firstTransition <- if(length(tmp_dom_transitions) == 1){
-              paste(rep(tmp_dom_transitions[1],2),collapse=func_string_line_ofDescent)
-            } else {
-              paste(tmp_dom_transitions[1:2],collapse=func_string_line_ofDescent)
-            }
+                                      paste(rep(tmp_dom_transitions[1],2),collapse=func_string_line_ofDescent)
+                                    } else {
+                                      paste(tmp_dom_transitions[1:2],collapse=func_string_line_ofDescent)
+                                    }
             # We now add more information to the domLineage vector
             tmp_final_domLineage <- c(tmp_final_domLineage,
                                       "line_ofDescent"= paste(tmp_line_of_descent,collapse= func_sepLines),
@@ -5239,8 +5245,10 @@ summarise_evolRepeatability <- function(funcSave_jobExpression,
             # In order to know the transitions, we look at the transition matrix and for a lineage, but starting with the first
             # that is found in the tranisition matrix which was not established on Step_0
             tmp_initialEst <- dimnames(func_workEnvir[[tmp_fileString]]$info_estLines$lineDemo)[[3]]
-            tmp_initialEst <- unique(c(tmp_initialEst[which.max(func_workEnvir[[tmp_fileString]]$info_estLines$lineDemo[nameTable_step(0),"popSize", tmp_initialEst])],
-                                       tmp_initialEst[which(func_workEnvir[[tmp_fileString]]$info_estLines$lineDemo[nameTable_step(0),"isEstablished", tmp_initialEst] == 1)]))
+            tmp_initialEst <- unique(c(tmp_initialEst[which.max(func_workEnvir[[tmp_fileString]]$info_estLines$lineDemo[nameTable_step(0, func_sepString = func_sepString),
+                                                                                                                        "popSize", tmp_initialEst])],
+                                       tmp_initialEst[which(func_workEnvir[[tmp_fileString]]$info_estLines$lineDemo[nameTable_step(0, func_sepString = func_sepString),
+                                                                                                                    "isEstablished", tmp_initialEst] == 1)]))
             # If there are any genotypes which were not in the initial set we go further, otherwise we're returning some null stuff
             tmp_returnMat <- NULL
             if(any(!is.element(tmp_transitionMat[,"genotypeID"],as.numeric(tmp_initialEst))) && length(tmp_initialEst) > 0){
@@ -5365,12 +5373,11 @@ summarise_evolRepeatability <- function(funcSave_jobExpression,
          file= all_repSets[[thisSet]][["saveFile"]],
          envir = func_workEnvir)
     rm(list= all_repSets[[thisSet]][["objName"]], envir = func_workEnvir)
-    rm(tmpList, envir = func_workEnvir)
     # Clean up space
     gc()
     # We return a confirmation that the job completed
     return(  nameObject(func_inString = all_repSets[[thisSet]][["objName"]],
-                        func_inPrefix = func_processedPattern,
+                        func_inPrefix = func_objPrefix,
                         func_splitStr = TRUE)  )
   } # This closes out the foreach loop
 

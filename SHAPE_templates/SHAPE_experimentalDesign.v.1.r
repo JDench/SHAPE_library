@@ -36,6 +36,9 @@ shape_toggle_forceCompletion <- FALSE
 ### FURTHER: leaving this as NULL would mean all files are saved to the tempdir(), 
 ###				this is not recommended for your sanity and/or using output of SHAPE.
 shape_workDir <- NULL
+# This is the name of the folder, to be placed in shape_workDir, to which you want your summariseExperiment() values to go.
+### NOTE: Becuase I pass these values as strings and note a filepath object, please add a terminal slash character(s).
+shape_postDir <- "postAnal/"
 
 # This is the unique string literal name you want applied to jobs related to this experiment
 ### WARNING: DO NOT INCLUDE any underscore "_" characters, and try to avoid special symbols
